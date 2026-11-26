@@ -214,6 +214,8 @@ textarea{min-height:84px;resize:vertical}
 .stat span{font-size:.78rem;color:var(--muted)}
 .copybox{font-size:.84rem;word-break:break-all;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;user-select:all;-webkit-user-select:all}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:999px;font-weight:500;font-size:.92rem;max-width:calc(100% - 32px);text-align:center}
+/* pc/tablet: venster in het midden, dan klik je er minder snel naast */
+@media (min-width:700px) and (min-height:520px){.overlay{align-items:center;padding:24px}.sheet{border-radius:16px;max-height:88vh;padding-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 </head>
@@ -252,7 +254,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 5; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 6; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -603,19 +605,26 @@ function render() {
 }
 
 /* ---------- vensters ---------- */
-let sheetNa = null;
+let sheetAangeraakt = false;
 function openSheet(html, onMount) {
   const root = $("#sheetRoot");
   root.innerHTML = `<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
-  const ov = $("#ov"); ov.addEventListener("click", e => { if (e.target === ov) closeSheet(); });
+  const ov = $("#ov");
+  // Venster om in te vullen: niet sluiten bij een tik ernaast (dan ben je je invoer kwijt), alleen met ×.
+  // Esc sluit zolang er nog niks is ingevuld of gekozen.
+  const formulier = !!ov.querySelector("input:not([type=search]):not([type=file]), textarea");
+  sheetAangeraakt = false;
+  ov.addEventListener("click", e => { if (e.target === ov && !formulier) closeSheet(); });
+  ov.querySelector(".sheet").addEventListener("input", () => sheetAangeraakt = true);
+  ov.querySelector(".sheet").addEventListener("change", () => sheetAangeraakt = true);
+  ov.querySelector(".sheet").addEventListener("click", e => { if (e.target.closest("button:not(.x), label")) sheetAangeraakt = true; });
   ov.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeSheet));
-  sheetNa = null;
   onMount && onMount(ov);
   vulFotos(ov);
   ov.querySelector(".sheet").scrollTop = 0;
 }
 function closeSheet() { $("#sheetRoot").innerHTML = ""; }
-document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#viewer").hidden) $("#viewer").hidden = true; else closeSheet(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#viewer").hidden) $("#viewer").hidden = true; else if (!sheetAangeraakt) closeSheet(); } });
 // Tik op een foto: schermvullend (knijpen om in te zoomen); tik op × om terug te gaan
 $("#sheetRoot").addEventListener("click", e => { const img = e.target.closest(".gallery img"); if (!img) return; $("#viewerImg").src = img.src; $("#viewer").hidden = false; });
 $("#viewerX").onclick = () => { $("#viewer").hidden = true; $("#viewerImg").removeAttribute("src"); };
@@ -837,6 +846,9 @@ function instelForm(lijst, i) {
       else { closeSheet(); toast("Klaar, alles doorlopen"); }
     };
     const sk = ov.querySelector("#iSkip"); sk && (sk.onclick = verder);
+    // pc: Enter in een veld = Opslaan (, volgende)
+    ov.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); ov.querySelector("#iOk").click(); } });
+    const eerste = ov.querySelector("#iNu, #iD"); if (eerste && window.matchMedia && matchMedia("(pointer: fine)").matches) eerste.focus();
     ov.querySelector("#iOk").onclick = () => {
       const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
       const nu = m.urenteller ? numOrNull(val("#iNu")) : null, ivU = m.urenteller ? numOrNull(val("#iU")) : null, ivM = numOrNull(val("#iM"));
