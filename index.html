@@ -135,6 +135,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .mtile .t{font-size:.78rem;color:var(--muted)}
 .mtile .nm{font-weight:600;font-size:1rem;line-height:1.25}
 .mtile .st{font-size:.82rem;color:var(--muted)}
+.kent{justify-self:start;background:#f2c500;color:#141414;border-radius:4px;padding:0 6px;font-weight:600;font-size:.8rem;letter-spacing:.04em;line-height:1.5;white-space:nowrap}
 .mtile .st b{color:var(--urgent);font-weight:600}
 .mtile .chip{margin-top:2px}
 .section-h{font-weight:600;text-transform:uppercase;font-size:.76rem;letter-spacing:.07em;color:var(--muted);margin:20px 0 0}
@@ -283,7 +284,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 12; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 13; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -615,7 +616,7 @@ function renderMachines() {
     const open = all.filter(x => x.status !== "klaar").length;
     const dit = all.filter(x => new Date(x.t).getFullYear() === yr).length;
     const s = ohStatus(m);
-    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span><span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${s.lvl !== "none" ? `<span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></span>` : ""}</button>`;
+    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span>${m.kenteken ? `<span class="kent">${esc(m.kenteken)}</span>` : ""}<span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${s.lvl !== "none" ? `<span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></span>` : ""}</button>`;
   };
   const grid = mcat === "Alles"
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
