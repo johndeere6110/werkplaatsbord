@@ -21,6 +21,10 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
 - **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Met een interval (elke … uur en/of elke … maanden, wat
   het eerst komt) rekent de app uit wanneer de volgende beurt is; bovenaan staat **Onderhoud aan de beurt**.
 - **Bewerken**: naam, categorie, soort, urenteller, interval, of de machine verwijderen.
+- **Laatste beurt invullen** (bovenaan in Machines, of bij een machine): urenstand nu, de laatste beurt (datum,
+  urenstand toen) en het interval in één venster. Met **Opslaan, volgende** loop je alle machines achter elkaar door,
+  **Overslaan** slaat er een over. Zolang de laatste beurt niet is ingevuld staat er "Laatste beurt?" (niet
+  "Binnenkort").
 
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een

@@ -117,7 +117,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .txt{margin:0;overflow-wrap:anywhere;font-weight:500;font-size:1rem;line-height:1.35}
 .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.84rem;color:var(--muted)}
 .chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 8px;font-weight:500;font-size:.8rem;white-space:nowrap}
-.chip.open,.chip.none{background:var(--surface-2);color:var(--muted)}
+.chip.open,.chip.none,.chip.onb{background:var(--surface-2);color:var(--muted)}
 .chip.klaar,.chip.ok,.chip.oh{background:var(--done-soft);color:var(--done)}
 .chip.oud,.chip.soon{background:var(--old-soft);color:var(--old)}
 .chip.dringend,.chip.late{background:var(--urgent-soft);color:var(--urgent)}
@@ -141,6 +141,8 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .duelist{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px;box-shadow:var(--shadow)}
 .due{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:0;background:none;text-align:left;width:100%}
 .due+.due{border-top:1px solid var(--line)}
+.due .go{color:var(--muted);font-size:1.3rem;line-height:1}
+.due.instel .mname{color:var(--busy)}
 .due .sub{display:block;font-size:.84rem;color:var(--muted)}
 .linkish{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:.88rem;justify-self:start}
 .voet{text-align:center;color:var(--muted);font-size:.78rem;margin-top:28px}
@@ -250,7 +252,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 4; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 5; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -339,7 +341,7 @@ const fmtDate = ts => new Date(ts).toLocaleDateString("nl-NL", { day: "numeric",
 const fmtTijd = ts => new Date(ts).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
 const isOld = x => x.status !== "klaar" && (Date.now() - x.t) > 14 * DAY;
 const STAT = { open: "Open", bezig: "Open", klaar: "Klaar" };
-const OHL = { late: "Te laat", soon: "Binnenkort", ok: "Op schema", none: "Geen interval" };
+const OHL = { late: "Te laat", soon: "Binnenkort", ok: "Op schema", none: "Geen interval", onb: "Laatste beurt?" };
 const addMonths = (ts, n) => { const d = new Date(ts); d.setMonth(d.getMonth() + n); return d.getTime(); };
 const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid).sort((a, b) => b.t - a.t)[0];
 const numOrNull = v => { v = String(v ?? "").replace(/\./g, "").replace(",", ".").trim(); if (v === "") return null; const n = Math.round(Number(v)); return isNaN(n) ? null : n; };
@@ -357,7 +359,7 @@ function ohStatus(m) {
   const iv = m.interval || {};
   if (!iv.uren && !iv.maanden) return { lvl: "none", txt: "Geen onderhoudsinterval ingesteld" };
   const last = lastOh(m.id);
-  if (!last) return { lvl: "soon", txt: "Nog geen beurt vastgelegd" };
+  if (!last) return { lvl: "onb", txt: "Laatste beurt nog niet ingevuld" };
   let lvl = "ok"; const parts = [];
   const bump = l => { if (l === "late" || (l === "soon" && lvl === "ok")) lvl = l; };
   if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; parts.push(r >= 0 ? `nog ${nf(r)} uur` : `${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
@@ -506,7 +508,7 @@ function statusTekst() {
 }
 
 /* ---------- lijst met storingen ---------- */
-let tab = "dringend", view = "meldingen", mcat = "Alles";
+let tab = "dringend", view = "meldingen", mcat = "Alles", instelLijst = [];
 const openGroups = new Set();
 function counts() {
   const open = db.meldingen.filter(x => x.status !== "klaar");
@@ -571,9 +573,12 @@ function renderMachines() {
   const yr = new Date().getFullYear();
   const ms = db.machines.filter(m => mcat === "Alles" || catOf(m) === mcat).sort((a, b) => a.naam.localeCompare(b.naam, "nl", { numeric: true }));
   const due = ms.map(m => ({ m, s: ohStatus(m) })).filter(o => o.s.lvl === "late" || o.s.lvl === "soon").sort((a, b) => (a.s.lvl === "late" ? 0 : 1) - (b.s.lvl === "late" ? 0 : 1));
-  const anyIv = ms.some(m => m.interval && (m.interval.uren || m.interval.maanden));
-  const dueHTML = due.length ? `<div class="duelist">${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${esc(m.naam)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
-    : `<p class="empty" style="padding:16px">${anyIv ? "Er is niks aan de beurt." : "Nog geen onderhoudsintervallen ingesteld. Tik op een machine en kies Bewerken."}</p>`;
+  // Machines zonder vastgelegde beurt: in één keer doorlopen (zelfde volgorde als hieronder)
+  const zonder = CATS.flatMap(c => ms.filter(m => catOf(m) === c)).filter(m => !lastOh(m.id));
+  instelLijst = zonder.map(m => m.id);
+  const instelHTML = zonder.length ? `<button class="due instel" data-instel="1"><span><span class="mname">Laatste beurt invullen</span><span class="sub">Nog bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"}. Met Opslaan, volgende loop je ze achter elkaar door.</span></span><span class="go" aria-hidden="true">›</span></button>` : "";
+  const dueHTML = due.length || zonder.length ? `<div class="duelist">${instelHTML}${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${esc(m.naam)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
+    : `<p class="empty" style="padding:16px">Er is niks aan de beurt.</p>`;
   const tile = m => {
     const all = db.meldingen.filter(x => x.machineId === m.id);
     const open = all.filter(x => x.status !== "klaar").length;
@@ -759,6 +764,7 @@ function machineDetail(mid) {
       <div><span>Interval</span><span>${ivTxt(m.interval || {})}</span></div>
     </div>
     <div class="actions" style="margin-top:-6px">
+      ${lo ? "" : '<button class="btn" id="lbIn">Laatste beurt invullen</button>'}
       <button class="btn done" id="ohDone">Onderhoud gedaan</button>
       ${m.urenteller ? '<button class="btn" id="urenUpd">Urenstand bijwerken</button>' : ""}
     </div>
@@ -768,6 +774,7 @@ function machineDetail(mid) {
     ov.querySelector("#mEdit").onclick = () => machineForm(mid);
     ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
     ov.querySelector("#ohDone").onclick = () => ohForm(mid);
+    const lb = ov.querySelector("#lbIn"); lb && (lb.onclick = () => instelForm([mid], 0));
     const u = ov.querySelector("#urenUpd"); u && (u.onclick = () => urenForm(mid));
   });
 }
@@ -795,6 +802,55 @@ function ohForm(mid) {
       const ts = Math.min(new Date(d + "T12:00").getTime(), Date.now());
       wijzig("onderhoud", { id: nieuwId("o_"), machineId: mid, t: ts, uren: u, wat: wat || "Onderhoud", door });
       bumpUren(mid, u); render(); machineDetail(mid); toast("Onderhoud vastgelegd");
+    };
+  });
+}
+
+// Onderhoud instellen: urenstand nu, interval en de laatste beurt (achteraf) in één venster.
+// Met een lijst van machines: Opslaan, volgende en Overslaan lopen ze achter elkaar door.
+function instelForm(lijst, i) {
+  const mid = lijst[i], m = mach(mid);
+  if (!m) { if (i + 1 < lijst.length) instelForm(lijst, i + 1); else closeSheet(); return; }
+  const iv = m.interval || {}, lo = lastOh(mid), rest = lijst.length - i - 1, today = new Date().toISOString().slice(0, 10);
+  openSheet(`${head("Onderhoud instellen")}
+    <p class="hint" style="margin-top:-8px"><b>${esc(m.naam)}</b>${lijst.length > 1 ? ` · ${i + 1} van ${lijst.length}` : ""}</p>
+    ${m.urenteller ? `<div class="field"><label for="iNu">Urenstand nu</label><input id="iNu" type="text" inputmode="numeric" value="${m.uren ?? ""}" placeholder="Wat staat er nu op de teller?"></div>` : ""}
+    <span class="lbl">Laatste beurt</span>
+    ${lo ? `<p class="hint">Staat er al: ${fmtDate(lo.t)}${lo.uren != null ? " bij " + nf(lo.uren) + " uur" : ""}. Een nieuwe beurt vul je in met Onderhoud gedaan.</p>` : `
+    <div class="two">
+      <div class="field"><label for="iD">Datum <span>(ongeveer is goed)</span></label><input id="iD" type="date" max="${today}"></div>
+      ${m.urenteller ? `<div class="field"><label for="iBu">Urenstand toen</label><input id="iBu" type="text" inputmode="numeric" placeholder="Bijv. 4200"></div>` : "<div></div>"}
+    </div>
+    <div class="field"><label for="iW">Wat is er gedaan? <span>(optioneel)</span></label><input id="iW" type="text" placeholder="Bijv. 500-urenbeurt"></div>`}
+    <span class="lbl">Interval <span>(wat het eerst komt, leeg laten mag)</span></span>
+    <div class="two">
+      ${m.urenteller ? `<div class="field"><label for="iU">Elke … uur</label><input id="iU" type="text" inputmode="numeric" value="${iv.uren ?? ""}" placeholder="Bijv. 500"></div>` : ""}
+      <div class="field"><label for="iM">Elke … maanden</label><input id="iM" type="text" inputmode="numeric" value="${iv.maanden ?? ""}" placeholder="Bijv. 12"></div>
+    </div>
+    <p class="err" id="err" hidden></p>
+    <div class="actions"><button class="btn primary groot" id="iOk">${rest ? "Opslaan, volgende" : "Opslaan"}</button>${rest ? '<button class="btn" id="iSkip">Overslaan</button>' : ""}</div>`, ov => {
+    const val = sel => { const el = ov.querySelector(sel); return el ? el.value : ""; };
+    const verder = () => {
+      render();
+      if (rest) instelForm(lijst, i + 1);
+      else if (lijst.length === 1) machineDetail(mid);
+      else { closeSheet(); toast("Klaar, alles doorlopen"); }
+    };
+    const sk = ov.querySelector("#iSkip"); sk && (sk.onclick = verder);
+    ov.querySelector("#iOk").onclick = () => {
+      const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
+      const nu = m.urenteller ? numOrNull(val("#iNu")) : null, ivU = m.urenteller ? numOrNull(val("#iU")) : null, ivM = numOrNull(val("#iM"));
+      const d = val("#iD"), bu = m.urenteller ? numOrNull(val("#iBu")) : null;
+      if (bu != null && !d) return fail("Vul ook de datum van die beurt in (ongeveer is goed).");
+      if (d && ivU && bu == null) return fail("Vul ook de urenstand bij die beurt in, anders kan de app niet uitrekenen hoeveel uur er nog over is.");
+      if (ivU && bu != null && nu == null) return fail("Vul ook de urenstand nu in.");
+      if (bu != null && nu != null && bu > nu) return fail("De urenstand bij de laatste beurt is hoger dan nu. Kijk de getallen even na.");
+      const nieuw = Object.assign({}, m, { interval: { uren: ivU, maanden: ivM } });
+      if (m.urenteller && nu != null) nieuw.uren = nu;
+      if (nu !== m.uren || ivU !== (iv.uren ?? null) || ivM !== (iv.maanden ?? null)) wijzig("machine", nieuw);
+      if (d && !lo) wijzig("onderhoud", { id: nieuwId("o_"), machineId: mid, t: Math.min(new Date(d + "T12:00").getTime(), Date.now()), uren: bu, wat: val("#iW").trim() || "Laatste beurt (achteraf ingevuld)", door: me || "?" });
+      if (!rest) toast("Opgeslagen");
+      verder();
     };
   });
 }
@@ -929,6 +985,7 @@ $("#view").addEventListener("click", e => {
   const a = e.target.closest("[data-act]"); if (a) { setStatus(a.dataset.id, a.dataset.act); return; }
   const d = e.target.closest("[data-detail]"); if (d) { detail(d.dataset.detail); return; }
   const m = e.target.closest("[data-mach]"); if (m) { machineDetail(m.dataset.mach); return; }
+  if (e.target.closest("[data-instel]")) { if (instelLijst.length) instelForm(instelLijst.slice(), 0); return; }
   if (e.target.id === "addMach") machineForm(null);
 });
 $("#fab").onclick = () => newMelding();
