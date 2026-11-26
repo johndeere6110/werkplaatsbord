@@ -54,44 +54,95 @@ h1{margin:0;font-size:1.6rem;line-height:1.15;font-weight:600}
     <div class="rij"><button class="knop licht" id="kopieer" type="button">Kopieer code</button></div>
   </div>
 
-  <div class="rij">
-    <a class="knop" href="./">Open de app</a>
-    <button class="knop licht" id="installeer" type="button" hidden>Installeer</button>
-  </div>
+  <!-- Android: alleen installeren -->
+  <section id="android" hidden>
+    <div class="blok">
+      <h2>Installeren op Android</h2>
+      <div class="rij" id="installRij" hidden><button class="knop" id="installeer" type="button">Installeer de app</button></div>
+      <ol id="androidStappen">
+        <li>Open deze pagina in <b>Chrome</b>. Zit je in WhatsApp: tik op ⋮ rechtsboven en kies <i>Openen in Chrome</i>.</li>
+        <li>Tik op ⋮ rechtsboven en dan op <b>App installeren</b> (of <b>Toevoegen aan startscherm</b>).</li>
+      </ol>
+    </div>
+    <p class="hint">Staat hij al op je telefoon? Open hem via het icoon met de sleutels.</p>
+  </section>
 
-  <div class="blok">
-    <h2>Android (Chrome)</h2>
-    <ol>
-      <li>Open deze pagina in <b>Chrome</b> (niet in WhatsApp: tik op ⋮ en kies <i>Openen in Chrome</i>).</li>
-      <li>Tik op <b>Installeer</b> hierboven, of op ⋮ rechtsboven en dan <b>App installeren</b> of <b>Toevoegen aan startscherm</b>.</li>
-    </ol>
-  </div>
-  <div class="blok">
-    <h2>iPhone (Safari)</h2>
-    <ol>
-      <li>Open deze pagina in <b>Safari</b>.</li>
-      <li>Tik op het deel-icoon (vierkantje met pijl omhoog).</li>
-      <li>Kies <b>Zet op beginscherm</b> en tik op <b>Voeg toe</b>.</li>
-    </ol>
-  </div>
-  <p class="hint">Daarna staat het Werkplaatsbord als app op je telefoon, met het icoon met de sleutels.</p>
+  <!-- iPhone: op het beginscherm zetten, openen in Safari alleen als het niet lukt -->
+  <section id="iphone" hidden>
+    <div class="blok" id="nietSafari" hidden>
+      <h2>Eerst naar Safari</h2>
+      <p class="hint">Installeren gaat alleen vanuit Safari. Tik op ⋯ of het deel-icoon en kies <b>Open in Safari</b>, of kopieer de link en plak hem in Safari.</p>
+      <div class="rij"><button class="knop licht" id="kopieerLink" type="button">Kopieer link</button></div>
+    </div>
+    <div class="blok">
+      <h2>Installeren op iPhone</h2>
+      <ol>
+        <li>Tik in <b>Safari</b> op het deel-icoon (vierkantje met pijl omhoog).</li>
+        <li>Scroll omlaag en kies <b>Zet op beginscherm</b>.</li>
+        <li>Tik op <b>Voeg toe</b>. Open de app daarna via het icoon met de sleutels.</li>
+      </ol>
+    </div>
+    <p class="hint">Lukt installeren niet? <a href="./" id="openIos">Open hem dan in Safari</a>. Dat werkt ook, maar Safari kan je naam en groep wissen als je de app een week niet gebruikt. Op het beginscherm gebeurt dat niet.</p>
+  </section>
+
+  <!-- Computer of iets anders -->
+  <section id="anders" hidden>
+    <div class="rij">
+      <a class="knop" href="./">Open de app</a>
+      <button class="knop licht" id="installeerPc" type="button" hidden>Installeer op deze computer</button>
+    </div>
+    <p class="hint">Bedoeld voor de telefoon. Stuur deze link naar je telefoon en open hem daar.</p>
+  </section>
 </main>
 <script>
 (function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ua = navigator.userAgent || "";
+  var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var android = /Android/.test(ua);
+  var standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  if (standalone) { location.replace("./" + location.search); return; }
+
   var code = "";
   try { code = new URLSearchParams(location.search).get("groep") || ""; } catch (e) {}
   if (code) {
     try { localStorage.setItem("wpbGroepUitnodiging", JSON.stringify({ code: code.trim(), ts: Date.now() })); } catch (e) {}
-    document.getElementById("groepBlok").hidden = false;
-    document.getElementById("code").textContent = code;
-    document.getElementById("kopieer").onclick = function () {
-      var b = this;
-      try { navigator.clipboard.writeText(code).then(function () { b.textContent = "Gekopieerd"; }); } catch (e) {}
-    };
+    $("groepBlok").hidden = false;
+    $("code").textContent = code;
+    $("kopieer").onclick = function () { var b = this; try { navigator.clipboard.writeText(code).then(function () { b.textContent = "Gekopieerd"; }); } catch (e) {} };
   }
-  var uitstel = null, knop = document.getElementById("installeer");
-  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); uitstel = e; knop.hidden = false; });
-  knop.onclick = function () { if (uitstel) { uitstel.prompt(); uitstel = null; knop.hidden = true; } };
+
+  var uitstel = null;
+  if (android) {
+    $("android").hidden = false;
+  } else if (ios) {
+    $("iphone").hidden = false;
+    // In WhatsApp, Chrome enz. op iPhone kan het niet op het beginscherm: eerst naar Safari
+    var safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA|FBAN|FBAV|Instagram|WhatsApp/.test(ua);
+    if (!safari) $("nietSafari").hidden = false;
+    $("kopieerLink").onclick = function () { var b = this; try { navigator.clipboard.writeText(location.href).then(function () { b.textContent = "Gekopieerd"; }); } catch (e) {} };
+    if (code) $("openIos").href = "./?groep=" + encodeURIComponent(code);
+  } else {
+    $("anders").hidden = false;
+  }
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault(); uitstel = e;
+    if (android) { $("installRij").hidden = false; $("androidStappen").hidden = true; }
+    else if (!ios) $("installeerPc").hidden = false;
+  });
+  var installeer = function () {
+    if (!uitstel) return;
+    uitstel.prompt();
+    uitstel.userChoice.then(function (k) { if (k && k.outcome === "accepted") { $("installRij").hidden = true; $("installeerPc").hidden = true; } });
+    uitstel = null;
+  };
+  $("installeer").onclick = installeer; $("installeerPc").onclick = installeer;
+  window.addEventListener("appinstalled", function () {
+    $("installRij").hidden = true;
+    $("androidStappen").hidden = true;
+    var p = document.createElement("p"); p.className = "hint"; p.textContent = "Geïnstalleerd. Open de app via het icoon met de sleutels.";
+    $("android").querySelector(".blok").appendChild(p);
+  });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 })();
 </script>

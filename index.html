@@ -65,6 +65,9 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .who{border:0;background:var(--surface-2);border-radius:999px;padding:7px 12px;font-size:.88rem;color:var(--muted);white-space:nowrap;display:flex;gap:6px;align-items:center}
 .who b{color:var(--fg);font-weight:600}
 .syncstat{font-size:.82rem;color:var(--muted);margin:-6px 0 0;display:flex;gap:6px;align-items:center}
+.installtip{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 12px;font-size:.9rem}
+.installtip a{color:var(--fg);font-weight:500;flex:1;text-decoration:none}
+.installtip button{border:0;background:none;color:var(--muted);width:32px;height:32px;font-size:1.1rem;flex:none}
 .syncstat .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
 .syncstat.ok .dot{background:var(--done)}
 .syncstat.fout .dot{background:var(--urgent)}
@@ -217,6 +220,7 @@ textarea{min-height:84px;resize:vertical}
       <button class="who" id="whoBtn" type="button" aria-label="Instellingen"><b id="whoName">Naam instellen</b> <span aria-hidden="true">⚙</span></button>
     </div>
     <p class="syncstat" id="syncstat"><span class="dot"></span><span id="syncTxt">Alleen op deze telefoon</span></p>
+    <div class="installtip" id="installTip" hidden><a href="installeren.html">Je gebruikt hem in de browser. Zet hem op je beginscherm ›</a><button type="button" id="installTipWeg" aria-label="Verbergen">×</button></div>
     <div class="tabs" role="tablist" id="tabs">
       <button role="tab" data-tab="dringend" aria-selected="true">Dringend <span class="n" id="n-dringend">0</span></button>
       <button role="tab" data-tab="tijd" aria-selected="false">Als er tijd is <span class="n" id="n-tijd">0</span></button>
@@ -242,7 +246,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 1; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 2; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = ""; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -920,6 +924,13 @@ window.addEventListener("online", () => planSync(500));
 window.addEventListener("storage", e => { if (e.key === "wpbGroepUitnodiging" && e.newValue) { if (neemUitnodiging() && !me) instellingen(); } });
 setInterval(() => { if (document.visibilityState === "visible") planSync(0); }, 120000);
 
+// Niet geïnstalleerd op een telefoon: tip om hem op het beginscherm te zetten (wegtikken = onthouden)
+(() => {
+  const ua = navigator.userAgent || "", tel = /Android|iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const los = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  if (tel && !los && !store.get("wpbTipWeg", false)) $("#installTip").hidden = false;
+  $("#installTipWeg").onclick = () => { store.set("wpbTipWeg", true); $("#installTip").hidden = true; };
+})();
 setWho(); render(); statusTekst();
 neemUitnodiging();
 if (!me) instellingen();

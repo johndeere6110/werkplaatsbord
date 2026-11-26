@@ -6,7 +6,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Taal in de app: Nederlands, komma als decimaalteken, informeel en kort.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
   met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
-  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging. Verander bestaande
+  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt). Verander bestaande
   sleutels niet. Foto's (verkleind, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
   uren, t, tKlaar, klaarDoor}; machine {id, naam, type, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
