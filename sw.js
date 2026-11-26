@@ -1,6 +1,6 @@
 // Werkplaatsbord service worker: nodig om als app te installeren, en de app zelf opent ook zonder bereik.
 // Verkeer naar de groep (script.google.com) gaat er niet doorheen.
-const CACHE = "werkplaatsbord-v10";
+const CACHE = "werkplaatsbord-v11";
 const SHELL = ["./", "./index.html", "./installeren.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./fonts/barlow-latin-400-normal.woff2", "./fonts/barlow-latin-500-normal.woff2", "./fonts/barlow-latin-600-normal.woff2"];
 

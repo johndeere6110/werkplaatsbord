@@ -30,7 +30,8 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   Op de pc komt hij in Downloads, op de telefoon via Delen (mail, WhatsApp, Drive). Het is een momentopname.
 - **PDF / afdrukken** (bij een machine) of **Alles als PDF** (onderaan in Machines): opent het printvenster van de
   browser; kies daar **Opslaan als PDF** of print hem. Per machine de gegevens, alle beurten en alle storingen (open of
-  opgelost). Bij alles eerst **Onderhoud aan de beurt** (te laat, dan binnenkort) en een overzicht van alle machines, dan een pagina per machine waar iets bij staat.
+  opgelost). Bij alles eerst **Onderhoud aan de beurt** (te laat, dan binnenkort) en een overzicht van alle machines, een invullijst **Laatste beurt invullen** (lege vakken, zelfde volgorde als in de app) voor machines
+  zonder vastgelegde beurt, dan een pagina per machine waar iets bij staat.
 
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een
