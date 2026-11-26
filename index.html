@@ -216,6 +216,30 @@ textarea{min-height:84px;resize:vertical}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:999px;font-weight:500;font-size:.92rem;max-width:calc(100% - 32px);text-align:center}
 /* pc/tablet: venster in het midden, dan klik je er minder snel naast */
 @media (min-width:700px) and (min-height:520px){.overlay{align-items:center;padding:24px}.sheet{border-radius:16px;max-height:88vh;padding-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}}
+/* afdrukken / PDF: alleen #printRoot, altijd licht */
+#printRoot{display:none}
+@media print{
+  @page{size:A4;margin:14mm 12mm}
+  body{background:#fff!important;color:#000}
+  body::before,.app,.bottombar,#sheetRoot,.toast,.viewer{display:none!important}
+  #printRoot{display:block;font-family:var(--f-body);font-size:10pt;line-height:1.35;color:#000}
+  .pr-pag{break-after:page}
+  .pr-pag:last-child{break-after:auto}
+  .pr-pag h1{font-size:17pt;margin:0 0 2pt;display:block}
+  .pr-sub{color:#555;margin:0 0 8pt}
+  .pr-pag h2{font-size:11.5pt;margin:12pt 0 4pt}
+  .pr-kv{display:grid;grid-template-columns:auto 1fr;gap:2pt 14pt;margin:0}
+  .pr-kv dt{color:#555}
+  .pr-kv dd{margin:0}
+  #printRoot table{width:100%;border-collapse:collapse}
+  #printRoot th{text-align:left;font-weight:600;border-bottom:1.2pt solid #000;padding:3pt 5pt 3pt 0}
+  #printRoot td{border-bottom:.5pt solid #bbb;padding:3pt 5pt 3pt 0;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}
+  #printRoot tr{break-inside:avoid}
+  #printRoot .r{text-align:right;font-variant-numeric:tabular-nums}
+  #printRoot .nw{white-space:nowrap}
+  .pr-leeg{color:#555;margin:0}
+  .pr-voet{color:#555;font-size:8.5pt;margin-top:14pt}
+}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 </head>
@@ -249,12 +273,13 @@ textarea{min-height:84px;resize:vertical}
 
 <div id="sheetRoot"></div>
 <div class="toast" id="toast" hidden></div>
+<div id="printRoot"></div>
 <div class="viewer" id="viewer" hidden><img alt="Foto" id="viewerImg"><button type="button" id="viewerX" aria-label="Sluiten">×</button></div>
 
 <script>
 (function(){
 "use strict";
-const VERSIE = 8; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 9; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -592,7 +617,7 @@ function renderMachines() {
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
     : `<h2 class="section-h">${mcat} (${ms.length})</h2><div class="mgrid">${ms.map(tile).join("")}</div>`;
   $("#view").innerHTML = `<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
-   <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button><button class="btn" id="csvAlles" type="button">Alles naar Excel</button></div>`;
+   <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button><button class="btn" id="pdfAlles" type="button">Alles als PDF</button><button class="btn" id="csvAlles" type="button">Alles naar Excel</button></div>`;
 }
 
 function render() {
@@ -777,10 +802,12 @@ function machineDetail(mid) {
     </div>
     <span class="lbl">Geschiedenis</span>
     <div class="hist">${tlHTML}</div>
-    <button class="linkish" id="mCsv">Exporteren naar Excel (onderhoud en storingen)</button>`, ov => {
+    <span class="lbl">Bewaren</span>
+    <div class="actions" style="margin-top:-6px"><button class="btn" id="mPdf">PDF / afdrukken</button><button class="btn" id="mCsv">Naar Excel</button></div>`, ov => {
     ov.querySelector("#meldHier").onclick = () => newMelding(mid);
     ov.querySelector("#mEdit").onclick = () => machineForm(mid);
     ov.querySelector("#mCsv").onclick = () => exporteer(mid);
+    ov.querySelector("#mPdf").onclick = () => afdrukken(mid);
     ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
     ov.querySelector("#ohDone").onclick = () => ohForm(mid);
     const lb = ov.querySelector("#lbIn"); lb && (lb.onclick = () => instelForm([mid], 0));
@@ -968,6 +995,55 @@ async function exporteer(mid) {
   toast("Opgeslagen als " + naam);
 }
 
+/* ---------- afdrukken / opslaan als PDF ---------- */
+// Momentopname via de printfunctie van de browser (kies daar "Opslaan als PDF"). Geen pdf-bibliotheek nodig.
+function prMachine(m, nu) {
+  const s = ohStatus(m), lo = lastOh(m.id);
+  const oh = db.onderhoud.filter(o => o.machineId === m.id).sort((a, b) => b.t - a.t);
+  const st = db.meldingen.filter(x => x.machineId === m.id).sort((a, b) => b.t - a.t);
+  const open = st.filter(x => x.status !== "klaar").length;
+  const ohT = oh.length ? `<table><thead><tr><th>Datum</th>${m.urenteller ? '<th class="r">Uren</th>' : ""}<th>Wat is er gedaan</th><th>Door</th></tr></thead><tbody>${oh.map(o =>
+    `<tr><td class="nw">${csvDatum(o.t)}</td>${m.urenteller ? `<td class="r">${o.uren != null ? nf(o.uren) : ""}</td>` : ""}<td>${esc(o.wat)}</td><td>${esc(o.door)}</td></tr>`).join("")}</tbody></table>` : '<p class="pr-leeg">Nog geen onderhoud vastgelegd.</p>';
+  const stT = st.length ? `<table><thead><tr><th>Gemeld</th><th>Storing</th><th>Door</th><th>Status</th><th>Opgelost</th></tr></thead><tbody>${st.map(x => {
+    const k = x.status === "klaar";
+    return `<tr><td class="nw">${csvDatum(x.t)}${x.uren != null ? "<br>" + nf(x.uren) + " u" : ""}</td><td>${esc(x.tekst)}${x.prio === "dringend" && !k ? " <b>(dringend)</b>" : ""}</td><td>${esc(x.door)}</td><td class="nw">${k ? "Opgelost" : "<b>Nog open</b>"}</td><td class="nw">${k ? (x.tKlaar ? csvDatum(x.tKlaar) : "") + (x.klaarDoor ? "<br>" + esc(x.klaarDoor) : "") : ""}</td></tr>`;
+  }).join("")}</tbody></table>` : '<p class="pr-leeg">Geen storingen gemeld.</p>';
+  return `<section class="pr-pag"><h1>${esc(m.naam)}</h1><p class="pr-sub">${esc([m.type, catOf(m)].filter(Boolean).join(" · "))}</p>
+    <dl class="pr-kv">
+      ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur" : "onbekend"}</dd>` : ""}
+      <dt>Interval</dt><dd>${esc(ivTxt(m.interval || {}))}</dd>
+      <dt>Laatste beurt</dt><dd>${lo ? csvDatum(lo.t) + (lo.uren != null ? " bij " + nf(lo.uren) + " uur" : "") : "nog niet vastgelegd"}</dd>
+      <dt>Volgende beurt</dt><dd>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</dd>
+      <dt>Storingen</dt><dd>${st.length} gemeld, ${open} nog open</dd>
+    </dl>
+    <h2>Onderhoud</h2>${ohT}<h2>Storingen</h2>${stT}
+    <p class="pr-voet">Werkplaatsbord · momentopname van ${nu}</p></section>`;
+}
+function afdrukken(mid) {
+  const nu = csvDatum(Date.now()) + " " + fmtTijd(Date.now());
+  const ms = mid ? [mach(mid)].filter(Boolean) : CATS.flatMap(c => db.machines.filter(m => catOf(m) === c).sort((a, b) => a.naam.localeCompare(b.naam, "nl", { numeric: true })));
+  let html = "";
+  if (!mid) {
+    const vrij = db.meldingen.filter(x => !x.machineId).sort((a, b) => b.t - a.t);
+    html += `<section class="pr-pag"><h1>Alle machines</h1><p class="pr-sub">Overzicht onderhoud en storingen</p>
+      <table><thead><tr><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
+        const s = ohStatus(m), lo = lastOh(m.id), open = db.meldingen.filter(x => x.machineId === m.id && x.status !== "klaar").length;
+        return `<tr><td>${esc(m.naam)}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
+      }).join("")}</tbody></table>
+      ${vrij.length ? `<h2>Overig (niet in de lijst)</h2><table><thead><tr><th>Gemeld</th><th>Wat</th><th>Storing</th><th>Status</th></tr></thead><tbody>${vrij.map(x => `<tr><td class="nw">${csvDatum(x.t)}</td><td>${esc(mName(x))}</td><td>${esc(x.tekst)}</td><td class="nw">${x.status === "klaar" ? "Opgelost" + (x.tKlaar ? " " + csvDatum(x.tKlaar) : "") : "<b>Nog open</b>"}</td></tr>`).join("")}</tbody></table>` : ""}
+      <p class="pr-voet">Werkplaatsbord · momentopname van ${nu}. Hierna een pagina per machine waar onderhoud of storingen bij staan.</p></section>`;
+  }
+  // Bij alles: alleen een eigen pagina voor machines waar iets bij staat (de rest staat in het overzicht)
+  html += ms.filter(m => mid || db.onderhoud.some(o => o.machineId === m.id) || db.meldingen.some(x => x.machineId === m.id)).map(m => prMachine(m, nu)).join("");
+  $("#printRoot").innerHTML = html;
+  // De titel wordt de voorgestelde bestandsnaam van de PDF
+  const oud = document.title, m = mid && mach(mid);
+  document.title = "Werkplaatsbord " + (m ? m.naam : "alle machines") + " " + new Date().toISOString().slice(0, 10);
+  const terug = () => { document.title = oud; $("#printRoot").innerHTML = ""; window.removeEventListener("afterprint", terug); };
+  window.addEventListener("afterprint", terug);
+  setTimeout(() => window.print(), 50);
+}
+
 /* ---------- instellingen en groep ---------- */
 function installLink(metGroep) { return SITE + "installeren.html" + (metGroep && groep.code ? "?groep=" + encodeURIComponent(groep.code.trim()) : ""); }
 function kopieer(tekst, vak) {
@@ -1035,6 +1111,7 @@ $("#view").addEventListener("click", e => {
   if (e.target.closest("[data-instel]")) { if (instelLijst.length) instelForm(instelLijst.slice(), 0); return; }
   if (e.target.id === "addMach") machineForm(null);
   if (e.target.id === "csvAlles") exporteer(null);
+  if (e.target.id === "pdfAlles") afdrukken(null);
 });
 $("#fab").onclick = () => newMelding();
 $("#navMeld").onclick = () => { view = "meldingen"; render(); window.scrollTo(0, 0); };

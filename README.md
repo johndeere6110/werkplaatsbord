@@ -28,6 +28,9 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
 - **Exporteren naar Excel** (onderaan bij een machine) of **Alles naar Excel** (onderaan in Machines): een csv met
   alle onderhoud en storingen, met of een storing op dat moment opgelost was of nog open (en wanneer en door wie).
   Op de pc komt hij in Downloads, op de telefoon via Delen (mail, WhatsApp, Drive). Het is een momentopname.
+- **PDF / afdrukken** (bij een machine) of **Alles als PDF** (onderaan in Machines): opent het printvenster van de
+  browser; kies daar **Opslaan als PDF** of print hem. Per machine de gegevens, alle beurten en alle storingen (open of
+  opgelost). Bij alles eerst een overzicht van alle machines, dan een pagina per machine waar iets bij staat.
 
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een
