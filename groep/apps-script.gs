@@ -1,12 +1,12 @@
 /**
- * Werkplaatsbord – storingen, machines en onderhoud delen met de groep via een Google Sheet.
+ * Werkplaatsbord – storingen, machines, onderhoud en keuringen delen met de groep via een Google Sheet.
  * Plak dit in de sheet via Uitbreidingen (of Extensies) > Apps Script (vervang wat er staat) en volg groep/HANDLEIDING.md.
  * Het script kan bij deze ene sheet (zie @OnlyCurrentDoc) en bij de Drive van dit account (voor de foto's).
  * Gebruik daarom een apart Google-account voor de groep.
  *
- * Blad "data", één regel per storing, machine of onderhoudsbeurt:
+ * Blad "data", één regel per storing, machine, onderhoudsbeurt of keuring:
  *   id | soort | omschrijving | van | gewijzigd | bijgewerkt | weg | data
- *   soort = storing, machine of onderhoud; omschrijving is om te lezen; data is voor de app.
+ *   soort = storing, machine, onderhoud of keuring; omschrijving is om te lezen; data is voor de app.
  *   gewijzigd = tijdstip van de wijziging op de telefoon (getal); de nieuwste wijziging wint.
  * Moet iets bij iedereen weg? Zet in kolom "weg" iets (bv. "ja"): bij het volgende bijwerken is het bij iedereen weg.
  *
@@ -21,7 +21,7 @@
 const BLAD = 'data';
 const KOP = ['id', 'soort', 'omschrijving', 'van', 'gewijzigd', 'bijgewerkt', 'weg', 'data'];
 const FOTOMAP = "Werkplaatsbord foto's";
-const SOORTEN = ['storing', 'machine', 'onderhoud'];
+const SOORTEN = ['storing', 'machine', 'onderhoud', 'keuring']; // de app vraagt dit op: wat hier niet in staat, houdt hij zelf vast
 
 function blad_(naam, kop) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -49,7 +49,7 @@ function doGet(e) {
     const weg = !!String(r[6]).trim();
     rijen.push({ id: String(r[0]), soort: String(r[1]), van: String(r[3]), gewijzigd: Number(r[4]) || 0, weg: weg, data: weg ? '' : String(r[7]) });
   }
-  return antwoord_({ ok: true, rijen: rijen, nu: Date.now() });
+  return antwoord_({ ok: true, rijen: rijen, soorten: SOORTEN, nu: Date.now() });
 }
 
 // Versturen: { code, rijen: [...] } of { code, foto: { id, data } }

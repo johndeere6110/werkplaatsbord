@@ -60,7 +60,10 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
   verwijderde storingen in de prullenbak van Drive. Afgevinkte storingen houden hun foto's.
 - **Zelf ook bij de sheet kunnen:** deel de sheet (knop **Delen** rechtsboven) met je eigen Google-account als
   **Bewerker**. Dan kun je er altijd bij, ook zonder het wachtwoord van het groepsaccount.
-- **Script aangepast?** Implementeren → *Implementaties beheren* → potloodje → Versie: *Nieuwe versie* →
-  Implementeren. Zo blijft de URL hetzelfde.
+- **Script aangepast?** Plak de nieuwe [`apps-script.gs`](apps-script.gs) over de oude heen en sla op. Daarna
+  Implementeren → *Implementaties beheren* → potloodje → Versie: *Nieuwe versie* → Implementeren. Zo blijft de URL
+  hetzelfde. (Alleen opslaan is niet genoeg: de app praat met de geïmplementeerde versie.)
+- **Keuringen** worden pas gedeeld als het script ze kent (vanaf app-versie 15). Met een ouder script blijven ze op de
+  telefoon waar ze zijn ingevuld, met een melding in het machinevenster; na het bijwerken worden ze vanzelf verstuurd.
 - **Code veranderen:** pas `GROEPSCODE` aan bij de scripteigenschappen. Iedereen moet dan de nieuwe code invullen
   (of een nieuwe link met groep krijgen).

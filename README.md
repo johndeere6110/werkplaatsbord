@@ -33,6 +33,15 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   opgelost). Bij alles eerst **Onderhoud aan de beurt** (te laat, dan binnenkort) en een overzicht van alle machines, een invullijst **Laatste beurt invullen** (lege vakken, zelfde volgorde als in de app) voor machines
   zonder vastgelegde beurt, dan een pagina per machine waar iets bij staat.
 
+## Keuringen
+- Bij een machine: **+ Keuring** (APK, kraankeuring, hijsmiddelen, NEN 3140 … of zelf typen), geldig tot, elke …
+  maanden, hoeveel dagen van tevoren waarschuwen (standaard 30) en een notitie. Weet je alleen wanneer hij gekeurd is,
+  dan rekent de app "geldig tot" uit.
+- **Gekeurd**: datum, nieuwe "geldig tot" (voorgesteld met het interval), opmerking. Eerdere keuringen blijven staan.
+- Bovenaan in Machines staat **Keuringen** met wat verlopen is of binnenkort verloopt; op de tegel een label.
+- Losse dingen (brandblussers, ladders, stellingen): maak er een machine van in de categorie Overig.
+- Keuringen staan ook in de PDF en de Excel-export.
+
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een
 groepscode: zie [groep/HANDLEIDING.md](groep/HANDLEIDING.md).

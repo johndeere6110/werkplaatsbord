@@ -138,6 +138,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .kent{justify-self:start;background:var(--surface-2);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 6px;font-weight:500;font-size:.8rem;letter-spacing:.03em;line-height:1.5;white-space:nowrap}
 .mtile .st b{color:var(--urgent);font-weight:600}
 .mtile .chip{margin-top:2px}
+.mtile .chips{display:flex;flex-wrap:wrap;gap:4px}
 .section-h{font-weight:600;text-transform:uppercase;font-size:.76rem;letter-spacing:.07em;color:var(--muted);margin:20px 0 0}
 .duelist{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px;box-shadow:var(--shadow)}
 .due{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:0;background:none;text-align:left;width:100%}
@@ -284,7 +285,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 14; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 15; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -311,7 +312,7 @@ const fotoDb = (() => {
   return { get: k => tx("readonly", s => s.get(k)), set: (k, v) => tx("readwrite", s => s.put(v, k)), del: k => tx("readwrite", s => s.delete(k)) };
 })();
 
-const LIJST = { machine: "machines", storing: "meldingen", onderhoud: "onderhoud" };
+const LIJST = { machine: "machines", storing: "meldingen", onderhoud: "onderhoud", keuring: "keuringen" };
 const CATS = ["Trekkers", "Kranen", "Shovels", "Werktuigen", "Overig"];
 
 function startMachines() {
@@ -335,11 +336,11 @@ if (!opgeslagen) {
   machines.forEach(m => meta[m.id] = { s: "machine", g: 1 }); // g = 1: alles wat al in de groep staat wint
   opgeslagen = { machines, meldingen: [], onderhoud: [], meta, dirty: [] };
 }
-const db = { machines: opgeslagen.machines || [], meldingen: opgeslagen.meldingen || [], onderhoud: opgeslagen.onderhoud || [] };
+const db = { machines: opgeslagen.machines || [], meldingen: opgeslagen.meldingen || [], onderhoud: opgeslagen.onderhoud || [], keuringen: opgeslagen.keuringen || [] };
 const meta = opgeslagen.meta || {};
 const dirty = new Set(opgeslagen.dirty || []);
 function bewaar() {
-  if (!store.set("wpbData", { machines: db.machines, meldingen: db.meldingen, onderhoud: db.onderhoud, meta, dirty: [...dirty] }))
+  if (!store.set("wpbData", { machines: db.machines, meldingen: db.meldingen, onderhoud: db.onderhoud, keuringen: db.keuringen, meta, dirty: [...dirty] }))
     toast("Opslaan op deze telefoon lukte niet (geheugen vol?)");
 }
 bewaar();
@@ -374,6 +375,20 @@ const fmtTijd = ts => new Date(ts).toLocaleTimeString("nl-NL", { hour: "2-digit"
 const isOld = x => x.status !== "klaar" && (Date.now() - x.t) > 14 * DAY;
 const STAT = { open: "Open", bezig: "Open", klaar: "Klaar" };
 const OHL = { late: "Te laat", soon: "Binnenkort", ok: "Op schema", none: "Geen interval", onb: "Laatste beurt?" };
+// Keuringen: {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf (dagen waarschuwen), notitie, hist [{t, tot, door, opm}]}
+const KSOORTEN = ["APK", "Kraankeuring", "Hijsmiddelen", "NEN 3140", "Brandblusser", "Tachograaf"];
+const KL = { late: "Verlopen", soon: "Verloopt binnenkort", ok: "Geldig" };
+const dagStart = ts => new Date(ts).setHours(0, 0, 0, 0);
+const isoDag = ts => { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const vanDag = v => v ? new Date(v + "T12:00").getTime() : null;
+function kStatus(k) {
+  const d = Math.round((dagStart(k.tot) - dagStart(Date.now())) / DAY);
+  if (d < 0) return { lvl: "late", d, txt: `${d === -1 ? "gisteren" : span(-d) + " geleden"} verlopen` };
+  if (d <= (k.vooraf ?? 30)) return { lvl: "soon", d, txt: d === 0 ? "verloopt vandaag" : d === 1 ? "verloopt morgen" : `verloopt over ${span(d)}` };
+  return { lvl: "ok", d, txt: "geldig tot " + fmtDate(k.tot) };
+}
+const keuringenVan = mid => db.keuringen.filter(k => k.machineId === mid).sort((a, b) => a.tot - b.tot);
+const kVerloopt = ms => { const ids = new Set(ms.map(m => m.id)); return db.keuringen.filter(k => ids.has(k.machineId)).map(k => ({ k, s: kStatus(k) })).filter(o => o.s.lvl !== "ok").sort((a, b) => a.k.tot - b.k.tot); };
 const addMonths = (ts, n) => { const d = new Date(ts); d.setMonth(d.getMonth() + n); return d.getTime(); };
 const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid).sort((a, b) => b.t - a.t)[0];
 const numOrNull = v => { v = String(v ?? "").replace(/\./g, "").replace(",", ".").trim(); if (v === "") return null; const n = Math.round(Number(v)); return isNaN(n) ? null : n; };
@@ -444,7 +459,11 @@ function maakFoto(file) {
 const isBeeld = d => typeof d === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d);
 
 /* ---------- groep (Google Sheet) ---------- */
-const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null };
+const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null, soorten: null };
+// Een ouder Google-script kent alleen deze soorten (en zegt niet welke het kent); keuringen blijven dan hier tot het script is bijgewerkt
+const OUDE_SOORTEN = ["storing", "machine", "onderhoud"];
+const kanDelen = soort => (sync.soorten || OUDE_SOORTEN).includes(soort);
+const teVersturen = () => [...dirty].filter(id => !meta[id] || kanDelen(meta[id].s));
 async function vraag(body, foto) {
   const ac = typeof AbortController === "function" ? new AbortController() : null, t = ac ? setTimeout(() => ac.abort(), 30000) : null;
   try {
@@ -458,6 +477,7 @@ async function vraag(body, foto) {
 function omschr(soort, o) {
   if (soort === "storing") return [mName(o), o.tekst, o.prio === "dringend" ? "dringend" : "als er tijd is", o.status === "klaar" ? "klaar" : "open"].join(" · ");
   if (soort === "machine") return `${o.naam} (${catOf(o)})`;
+  if (soort === "keuring") return [mach(o.machineId)?.naam || "?", o.soort, "geldig tot " + csvDatum(o.tot)].join(" · ");
   return [mach(o.machineId)?.naam || "?", o.wat, o.uren != null ? nf(o.uren) + " uur" : ""].filter(Boolean).join(" · ");
 }
 function rijVan(id) {
@@ -484,7 +504,7 @@ async function syncNu() {
       wacht = store.get("wpbFotoWacht", []).filter(x => x !== fid); store.set("wpbFotoWacht", wacht);
     }
     // 2. eigen wijzigingen versturen
-    const ids = [...dirty], gBij = {}, stuur = [];
+    const ids = teVersturen(), gBij = {}, stuur = [];
     ids.forEach(id => { const r = rijVan(id); if (r) { stuur.push(r); gBij[id] = r.gewijzigd; } else dirty.delete(id); });
     for (let i = 0; i < stuur.length; i += 100) {
       const r = await vraag({ rijen: stuur.slice(i, i + 100) });
@@ -494,6 +514,9 @@ async function syncNu() {
     // 3. ophalen wat de anderen deden
     const r = await vraag(null);
     if (!r || !r.ok) throw new Error(r && r.fout || "ophalen");
+    const kKonNiet = !kanDelen("keuring");
+    sync.soorten = Array.isArray(r.soorten) ? r.soorten.map(String) : OUDE_SOORTEN;
+    if (kKonNiet && kanDelen("keuring") && teVersturen().length) nogEens = true; // script net bijgewerkt: keuringen meteen sturen
     const opServer = new Set();
     let veranderd = false;
     for (const row of r.rijen || []) {
@@ -516,7 +539,7 @@ async function syncNu() {
       veranderd = true;
     }
     // 4. wat hier staat maar nog niet in de groep: alsnog sturen (bv. de eerste keer meedoen)
-    for (const soort of Object.keys(LIJST)) for (const o of db[LIJST[soort]]) {
+    for (const soort of Object.keys(LIJST).filter(kanDelen)) for (const o of db[LIJST[soort]]) {
       if (!opServer.has(o.id) && !dirty.has(o.id)) { meta[o.id] = { s: soort, g: Math.max((meta[o.id] || {}).g || 0, 2) }; dirty.add(o.id); nogEens = true; }
     }
     bewaar();
@@ -526,7 +549,7 @@ async function syncNu() {
     sync.fout = String(e && e.message) === "code" ? "Groepscode klopt niet" : (navigator.onLine ? "Bijwerken lukte niet, probeert het zo opnieuw" : "Geen bereik, probeert het later opnieuw");
   } finally {
     sync.bezig = false; statusTekst();
-    if (nogEens || dirty.size) planSync(nogEens ? 300 : 30000);
+    if (nogEens || teVersturen().length) planSync(nogEens ? 300 : 30000);
   }
 }
 function statusTekst() {
@@ -536,7 +559,7 @@ function statusTekst() {
   if (sync.bezig) { el.classList.add("bezig"); t.textContent = "Bijwerken…"; return; }
   if (sync.fout) { el.classList.add("fout"); t.textContent = sync.fout; return; }
   el.classList.add("ok");
-  t.textContent = sync.laatst ? "Groep bijgewerkt om " + fmtTijd(sync.laatst) + (dirty.size ? " · nog " + dirty.size + " te versturen" : "") : "Groep: nog niet bijgewerkt";
+  t.textContent = sync.laatst ? "Groep bijgewerkt om " + fmtTijd(sync.laatst) + (teVersturen().length ? " · nog " + teVersturen().length + " te versturen" : "") : "Groep: nog niet bijgewerkt";
 }
 
 /* ---------- lijst met storingen ---------- */
@@ -609,19 +632,29 @@ function renderMachines() {
   const zonder = CATS.flatMap(c => ms.filter(m => catOf(m) === c)).filter(m => !lastOh(m.id));
   instelLijst = zonder.map(m => m.id);
   const instelHTML = zonder.length ? `<button class="due instel" data-instel="1"><span><span class="mname">Laatste beurt invullen</span><span class="sub">Nog bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"}. Met Opslaan, volgende loop je ze achter elkaar door.</span></span><span class="go" aria-hidden="true">›</span></button>` : "";
+  const kv = kVerloopt(ms), heeftK = db.keuringen.some(k => ms.some(m => m.id === k.machineId));
+  const keurHTML = !heeftK ? "" : `<h2 class="section-h">Keuringen</h2>` + (kv.length
+    ? `<div class="duelist">${kv.map(({ k, s }) => `<button class="due" data-keur="${esc(k.id)}"><span><span class="mname">${esc(mach(k.machineId)?.naam || "?")} · ${esc(k.soort)}</span><span class="sub">${esc(s.txt)} (${fmtDate(k.tot)})</span></span><span class="chip ${s.lvl}">${s.lvl === "late" ? "Verlopen" : "Binnenkort"}</span></button>`).join("")}</div>`
+    : `<p class="empty" style="padding:16px">Alle keuringen zijn geldig.</p>`);
   const dueHTML = due.length || zonder.length ? `<div class="duelist">${instelHTML}${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${esc(m.naam)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
     : `<p class="empty" style="padding:16px">Er is niks aan de beurt.</p>`;
+  const chips = (m, s) => {
+    const k = kVerloopt([m]), c = [];
+    if (s.lvl !== "none") c.push(`<span class="chip ${s.lvl}">${OHL[s.lvl]}</span>`);
+    if (k.length) c.push(`<span class="chip ${k.some(o => o.s.lvl === "late") ? "late" : "soon"}">Keuring ${k.some(o => o.s.lvl === "late") ? "verlopen" : "binnenkort"}</span>`);
+    return c.length ? `<span class="chips">${c.join("")}</span>` : "";
+  };
   const tile = m => {
     const all = db.meldingen.filter(x => x.machineId === m.id);
     const open = all.filter(x => x.status !== "klaar").length;
     const dit = all.filter(x => new Date(x.t).getFullYear() === yr).length;
     const s = ohStatus(m);
-    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span>${m.kenteken ? `<span class="kent">${esc(m.kenteken)}</span>` : ""}<span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${s.lvl !== "none" ? `<span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></span>` : ""}</button>`;
+    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span>${m.kenteken ? `<span class="kent">${esc(m.kenteken)}</span>` : ""}<span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${chips(m, s)}</button>`;
   };
   const grid = mcat === "Alles"
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
     : `<h2 class="section-h">${mcat} (${ms.length})</h2><div class="mgrid">${ms.map(tile).join("")}</div>`;
-  $("#view").innerHTML = `<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
+  $("#view").innerHTML = `${keurHTML}<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
    <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button><button class="btn" id="pdfAlles" type="button">Alles als PDF</button><button class="btn" id="csvAlles" type="button">Alles naar Excel</button></div>`;
 }
 
@@ -779,7 +812,7 @@ function machineDetail(mid) {
   const yr = new Date().getFullYear();
   const dit = ms.filter(x => new Date(x.t).getFullYear() === yr).length;
   const open = ms.filter(x => x.status !== "klaar").length;
-  const s = ohStatus(m), lo = lastOh(mid);
+  const s = ohStatus(m), lo = lastOh(mid), ks = keuringenVan(mid);
   const tl = [...ms.map(x => ({ t: x.t, k: "m", x })), ...db.onderhoud.filter(o => o.machineId === mid).map(o => ({ t: o.t, k: "o", x: o }))].sort((a, b) => b.t - a.t);
   const tlHTML = tl.length ? tl.map(e => e.k === "o"
     ? `<div class="h"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div></div>`
@@ -805,6 +838,10 @@ function machineDetail(mid) {
       <button class="btn done" id="ohDone">Onderhoud gedaan</button>
       ${m.urenteller ? '<button class="btn" id="urenUpd">Urenstand bijwerken</button>' : ""}
     </div>
+    <span class="lbl">Keuringen</span>
+    ${ks.length ? `<div class="duelist" style="margin-top:0">${ks.map(k => { const ksx = kStatus(k); return `<button class="due" data-keur="${esc(k.id)}"><span><span class="mname">${esc(k.soort)}</span><span class="sub">${ksx.lvl === "ok" ? esc(ksx.txt) : esc(ksx.txt) + " (" + fmtDate(k.tot) + ")"}</span></span><span class="chip ${ksx.lvl}">${KL[ksx.lvl]}</span></button>`; }).join("")}</div>` : '<p class="hint">Nog geen keuringen. Bijv. APK, kraankeuring of hijsmiddelen.</p>'}
+    ${groepAan() && sync.soorten && !kanDelen("keuring") ? '<p class="hint">Keuringen staan nu alleen op dit apparaat: het Google-script van de groep moet nog bijgewerkt worden.</p>' : ""}
+    <div class="actions" style="margin-top:-6px"><button class="btn" id="kNieuw">+ Keuring</button></div>
     <span class="lbl">Geschiedenis</span>
     <div class="hist">${tlHTML}</div>
     <span class="lbl">Bewaren</span>
@@ -813,6 +850,8 @@ function machineDetail(mid) {
     ov.querySelector("#mEdit").onclick = () => machineForm(mid);
     ov.querySelector("#mCsv").onclick = () => exporteer(mid);
     ov.querySelector("#mPdf").onclick = () => afdrukken(mid);
+    ov.querySelector("#kNieuw").onclick = () => keuringForm(mid, null);
+    ov.querySelectorAll("[data-keur]").forEach(b => b.onclick = () => keuringDetail(b.dataset.keur));
     ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
     ov.querySelector("#ohDone").onclick = () => ohForm(mid);
     const lb = ov.querySelector("#lbIn"); lb && (lb.onclick = () => instelForm([mid], 0));
@@ -963,8 +1002,104 @@ function machineForm(mid) {
     dm && armed(dm, "Zeker? Storingen en onderhoud gaan ook weg", () => {
       db.meldingen.filter(x => x.machineId === mid).forEach(x => verwijder("storing", x.id));
       db.onderhoud.filter(x => x.machineId === mid).forEach(x => verwijder("onderhoud", x.id));
+      db.keuringen.filter(x => x.machineId === mid).forEach(x => verwijder("keuring", x.id));
       verwijder("machine", mid); closeSheet(); render(); toast("Machine verwijderd");
     });
+  });
+}
+
+/* ---------- keuringen ---------- */
+function keuringDetail(kid) {
+  const k = db.keuringen.find(x => x.id === kid); if (!k) return;
+  const m = mach(k.machineId), st = kStatus(k), hist = k.hist || [];
+  openSheet(`${head(esc(k.soort))}
+    <p class="hint" style="margin-top:-8px">${esc(m ? m.naam : "?")}</p>
+    <div class="kv">
+      <div><span>Status</span><span class="chip ${st.lvl}">${KL[st.lvl]}</span></div>
+      <div><span>Geldig tot</span><span>${fmtDate(k.tot)}${st.lvl !== "ok" ? " · " + esc(st.txt) : ""}</span></div>
+      <div><span>Hoe vaak</span><span>${k.maanden ? `elke ${k.maanden} maanden` : "niet ingesteld"}</span></div>
+      <div><span>Waarschuwen</span><span>${k.vooraf ?? 30} dagen van tevoren</span></div>
+      ${k.notitie ? `<div><span>Notitie</span><span>${esc(k.notitie)}</span></div>` : ""}
+    </div>
+    <div class="actions"><button class="btn done" id="kGekeurd">Gekeurd</button><button class="btn" id="kEdit">Bewerken</button><button class="btn warn" id="kDel">Verwijderen</button></div>
+    <span class="lbl">Eerder gekeurd</span>
+    ${hist.length ? `<div class="hist">${hist.map(h => `<div class="h"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span></div></div></div>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
+    ${m ? `<button class="linkish" data-terug="1">Terug naar ${esc(m.naam)}</button>` : ""}`, ov => {
+    ov.querySelector("#kGekeurd").onclick = () => gekeurdForm(kid);
+    ov.querySelector("#kEdit").onclick = () => keuringForm(k.machineId, kid);
+    const t = ov.querySelector("[data-terug]"); t && (t.onclick = () => machineDetail(k.machineId));
+    armed(ov.querySelector("#kDel"), "Zeker weten? Tik nog een keer", () => { verwijder("keuring", kid); render(); m ? machineDetail(m.id) : closeSheet(); toast("Keuring verwijderd"); });
+  });
+}
+// Nieuwe keuring (kid leeg) of bewerken
+function keuringForm(mid, kid) {
+  const m = mach(mid), k = kid ? db.keuringen.find(x => x.id === kid) : null; if (!m) return;
+  const vandaag = isoDag(Date.now());
+  openSheet(`${head(k ? "Keuring bewerken" : "Keuring toevoegen")}
+    <p class="hint" style="margin-top:-8px">${esc(m.naam)}</p>
+    <div class="field"><label for="ks">Welke keuring?</label>
+      <input id="ks" type="text" value="${esc(k ? k.soort : "")}" placeholder="Bijv. APK" autocomplete="off">
+      <div class="cats wrap" id="ksq">${KSOORTEN.map(x => `<button type="button" data-q="${esc(x)}" aria-pressed="${!!k && k.soort === x}">${esc(x)}</button>`).join("")}</div></div>
+    ${k ? "" : `<div class="field"><label for="kl">Laatst gekeurd op <span>(als je het weet)</span></label><input id="kl" type="date" max="${vandaag}"></div>`}
+    <div class="two">
+      <div class="field"><label for="km">Elke … maanden</label><input id="km" type="text" inputmode="numeric" value="${k && k.maanden ? k.maanden : ""}" placeholder="Bijv. 12"></div>
+      <div class="field"><label for="kt">Geldig tot</label><input id="kt" type="date" value="${k ? isoDag(k.tot) : ""}"></div>
+    </div>
+    <p class="hint">Vul "Geldig tot" in, of laat de app het uitrekenen uit "laatst gekeurd" en "elke … maanden".</p>
+    <div class="field"><label for="kv">Waarschuwen … dagen van tevoren</label><input id="kv" type="text" inputmode="numeric" value="${k ? k.vooraf ?? 30 : 30}"></div>
+    <div class="field"><label for="kn">Notitie <span>(optioneel)</span></label><input id="kn" type="text" value="${esc(k ? k.notitie || "" : "")}" placeholder="Bijv. keurder, of wat er mee moet"></div>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="kOk">${k ? "Opslaan" : "Toevoegen"}</button>`, ov => {
+    const soortI = ov.querySelector("#ks"), kt = ov.querySelector("#kt"), km = ov.querySelector("#km"), kl = ov.querySelector("#kl");
+    let totZelf = !!k;
+    kt.addEventListener("input", () => totZelf = !!kt.value);
+    const reken = () => { const mnd = numOrNull(km.value); if (!totZelf && kl && kl.value && mnd) kt.value = isoDag(addMonths(vanDag(kl.value), mnd)); };
+    km.addEventListener("input", reken); kl && kl.addEventListener("input", reken);
+    ov.querySelector("#ksq").addEventListener("click", e => { const b = e.target.closest("[data-q]"); if (!b) return; soortI.value = b.dataset.q; ov.querySelectorAll("#ksq button").forEach(o => o.setAttribute("aria-pressed", o === b)); });
+    ov.querySelector("#kOk").onclick = () => {
+      const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
+      const soort = soortI.value.trim(), mnd = numOrNull(km.value), voor = numOrNull(ov.querySelector("#kv").value), laatst = kl ? vanDag(kl.value) : null;
+      let tot = vanDag(kt.value);
+      if (!soort) return fail("Vul in welke keuring het is.");
+      if (!tot && laatst && mnd) tot = addMonths(laatst, mnd);
+      if (!tot) return fail("Vul in tot wanneer hij geldig is, of wanneer hij gekeurd is en hoe vaak.");
+      if (mnd != null && (mnd < 1 || mnd > 240)) return fail("Elke … maanden moet tussen 1 en 240 liggen.");
+      const n = Object.assign({}, k || { id: nieuwId("k_"), machineId: mid, hist: [] }, { soort, tot, maanden: mnd, vooraf: voor == null ? 30 : Math.min(Math.max(voor, 0), 365), notitie: ov.querySelector("#kn").value.trim() });
+      if (!k && laatst) n.hist = [{ t: Math.min(laatst, Date.now()), tot, door: me || "?", opm: "" }];
+      wijzig("keuring", n); render(); keuringDetail(n.id); toast(k ? "Opgeslagen" : "Keuring toegevoegd");
+    };
+    if (!k && window.matchMedia && matchMedia("(pointer: fine)").matches) soortI.focus();
+  });
+}
+function gekeurdForm(kid) {
+  const k = db.keuringen.find(x => x.id === kid); if (!k) return;
+  const m = mach(k.machineId), vandaag = isoDag(Date.now());
+  const voorstel = d => k.maanden ? isoDag(addMonths(vanDag(d), k.maanden)) : "";
+  openSheet(`${head("Gekeurd")}
+    <p class="hint" style="margin-top:-8px">${esc(k.soort)} · ${esc(m ? m.naam : "?")}</p>
+    <div class="two">
+      <div class="field"><label for="gd">Gekeurd op</label><input id="gd" type="date" value="${vandaag}" max="${vandaag}"></div>
+      <div class="field"><label for="gt">Nu geldig tot</label><input id="gt" type="date" value="${voorstel(vandaag)}"></div>
+    </div>
+    <div class="field"><label for="go">Opmerking <span>(optioneel)</span></label><input id="go" type="text" placeholder="Bijv. goedgekeurd, ketting vervangen"></div>
+    <div class="field"><label for="gdoor">Door</label><input id="gdoor" type="text" value="${esc(me)}"></div>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="gOk">Opslaan</button>`, ov => {
+    const gd = ov.querySelector("#gd"), gt = ov.querySelector("#gt");
+    let totZelf = false;
+    gt.addEventListener("input", () => totZelf = true);
+    gd.addEventListener("input", () => { if (!totZelf && gd.value) gt.value = voorstel(gd.value); });
+    ov.querySelector("#gOk").onclick = () => {
+      const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
+      const t = vanDag(gd.value), tot = vanDag(gt.value), door = ov.querySelector("#gdoor").value.trim();
+      if (!t) return fail("Kies de datum van de keuring.");
+      if (!tot) return fail("Vul in tot wanneer hij nu geldig is.");
+      if (tot <= t) return fail("Geldig tot moet na de keuringsdatum liggen.");
+      if (!door) return fail("Vul in wie het gedaan of geregeld heeft.");
+      if (door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const hist = [{ t: Math.min(t, Date.now()), tot, door, opm: ov.querySelector("#go").value.trim() }, ...(k.hist || [])].slice(0, 50);
+      wijzig("keuring", Object.assign({}, k, { tot, hist })); render(); keuringDetail(kid); toast("Keuring vastgelegd");
+    };
   });
 }
 
@@ -984,6 +1119,10 @@ function csvRegels(mid) {
   db.meldingen.filter(x => !mid || x.machineId === mid).forEach(x => {
     const klaar = x.status === "klaar";
     rij.push({ n: mInfo(x)[0], t: x.t, c: [...mInfo(x), csvDatum(x.t), "Storing", x.tekst, x.uren ?? "", x.door, klaar ? "Opgelost" : "Nog open", x.prio === "dringend" ? "Dringend" : "Als er tijd is", klaar && x.tKlaar ? csvDatum(x.tKlaar) : "", klaar ? x.klaarDoor || "" : ""] });
+  });
+  db.keuringen.filter(k => !mid || k.machineId === mid).forEach(k => {
+    const info = mInfo(k), regels = (k.hist || []).length ? k.hist : [{ t: 0, tot: k.tot, door: "", opm: "" }];
+    regels.forEach((h, i) => rij.push({ n: info[0], t: h.t, c: [...info, h.t ? csvDatum(h.t) : "", "Keuring", k.soort + (h.opm ? ": " + h.opm : ""), "", h.door, (i === 0 ? (kStatus(k).lvl === "late" ? "Verlopen, was geldig tot " : "Geldig tot ") : "Was geldig tot ") + csvDatum(h.tot), "", "", ""] }));
   });
   rij.sort((a, b) => a.n.localeCompare(b.n, "nl", { numeric: true }) || a.t - b.t);
   return [kop, ...rij.map(r => r.c)].map(r => r.map(csvCel).join(";")).join("\r\n") + "\r\n";
@@ -1009,7 +1148,12 @@ function prMachine(m, nu) {
   const s = ohStatus(m), lo = lastOh(m.id);
   const oh = db.onderhoud.filter(o => o.machineId === m.id).sort((a, b) => b.t - a.t);
   const st = db.meldingen.filter(x => x.machineId === m.id).sort((a, b) => b.t - a.t);
-  const open = st.filter(x => x.status !== "klaar").length;
+  const open = st.filter(x => x.status !== "klaar").length, ks = keuringenVan(m.id);
+  const ksH = ks.flatMap(k => (k.hist || []).map(h => ({ k, h }))).sort((a, b) => b.h.t - a.h.t);
+  const kT = ks.length ? `<table><thead><tr><th>Keuring</th><th>Geldig tot</th><th>Status</th><th>Hoe vaak</th><th>Notitie</th></tr></thead><tbody>${ks.map(k => { const x = kStatus(k);
+      return `<tr><td>${esc(k.soort)}</td><td class="nw">${csvDatum(k.tot)}</td><td class="nw">${x.lvl === "ok" ? "Geldig" : "<b>" + KL[x.lvl] + "</b>"}</td><td class="nw">${k.maanden ? "elke " + k.maanden + " mnd" : ""}</td><td>${esc(k.notitie || "")}</td></tr>`; }).join("")}</tbody></table>
+      ${ksH.length ? `<table style="margin-top:6pt"><thead><tr><th>Gekeurd op</th><th>Keuring</th><th>Geldig tot</th><th>Door</th><th>Opmerking</th></tr></thead><tbody>${ksH.map(({ k, h }) => `<tr><td class="nw">${csvDatum(h.t)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(h.tot)}</td><td>${esc(h.door)}</td><td>${esc(h.opm || "")}</td></tr>`).join("")}</tbody></table>` : ""}`
+    : "";
   const ohT = oh.length ? `<table><thead><tr><th>Datum</th>${m.urenteller ? '<th class="r">Uren</th>' : ""}<th>Wat is er gedaan</th><th>Door</th></tr></thead><tbody>${oh.map(o =>
     `<tr><td class="nw">${csvDatum(o.t)}</td>${m.urenteller ? `<td class="r">${o.uren != null ? nf(o.uren) : ""}</td>` : ""}<td>${esc(o.wat)}</td><td>${esc(o.door)}</td></tr>`).join("")}</tbody></table>` : '<p class="pr-leeg">Nog geen onderhoud vastgelegd.</p>';
   const stT = st.length ? `<table><thead><tr><th>Gemeld</th><th>Storing</th><th>Door</th><th>Status</th><th>Opgelost</th></tr></thead><tbody>${st.map(x => {
@@ -1025,7 +1169,7 @@ function prMachine(m, nu) {
       <dt>Volgende beurt</dt><dd>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</dd>
       <dt>Storingen</dt><dd>${st.length} gemeld, ${open} nog open</dd>
     </dl>
-    <h2>Onderhoud</h2>${ohT}<h2>Storingen</h2>${stT}
+    ${kT ? `<h2>Keuringen</h2>${kT}` : ""}<h2>Onderhoud</h2>${ohT}<h2>Storingen</h2>${stT}
     <p class="pr-voet">Werkplaatsbord · momentopname van ${nu}</p></section>`;
 }
 function afdrukken(mid) {
@@ -1041,7 +1185,11 @@ function afdrukken(mid) {
         return `<tr><td>${esc(m.naam)}</td><td class="nw">${s.lvl === "late" ? "<b>Te laat</b>" : "Binnenkort"}</td><td>${esc(s.txt)}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) + (lo.uren != null ? " · " + nf(lo.uren) + " u" : "") : ""}</td></tr>`;
       }).join("")}</tbody></table>` : '<p class="pr-leeg">Er is niks aan de beurt.</p>';
     const zonder = ms.filter(m => !lastOh(m.id)); // zelfde als "Laatste beurt invullen" in de app
-    html += `<section class="pr-pag"><h1>Alle machines</h1><p class="pr-sub">Overzicht onderhoud en storingen</p>
+    const alleK = db.keuringen.filter(k => mach(k.machineId)).sort((a, b) => a.tot - b.tot);
+    const kHTML = alleK.length ? `<h2>Keuringen</h2><table><thead><tr><th>Machine</th><th>Keuring</th><th>Geldig tot</th><th>Status</th></tr></thead><tbody>${alleK.map(k => { const x = kStatus(k);
+        return `<tr><td>${esc(mach(k.machineId).naam)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(k.tot)}</td><td>${x.lvl === "ok" ? "Geldig" : "<b>" + KL[x.lvl] + "</b> · " + esc(x.txt)}</td></tr>`; }).join("")}</tbody></table>` : "";
+    html += `<section class="pr-pag"><h1>Alle machines</h1><p class="pr-sub">Overzicht keuringen, onderhoud en storingen</p>
+      ${kHTML}
       <h2>Onderhoud aan de beurt</h2>${dueHTML}
       ${zonder.length ? `<p class="pr-leeg" style="margin-top:4pt">Bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"} is de laatste beurt nog niet ingevuld. Op de volgende pagina staat een invullijst.</p>` : ""}
       <h2>Alle machines</h2>
@@ -1063,7 +1211,7 @@ function afdrukken(mid) {
       }).join("")}</tbody></table>
       <p class="pr-voet">Werkplaatsbord · invullijst van ${nu}</p></section>`;
   }
-  html += ms.filter(m => mid || db.onderhoud.some(o => o.machineId === m.id) || db.meldingen.some(x => x.machineId === m.id)).map(m => prMachine(m, nu)).join("");
+  html += ms.filter(m => mid || db.onderhoud.some(o => o.machineId === m.id) || db.meldingen.some(x => x.machineId === m.id) || db.keuringen.some(k => k.machineId === m.id)).map(m => prMachine(m, nu)).join("");
   $("#printRoot").innerHTML = html;
   // De titel wordt de voorgestelde bestandsnaam van de PDF
   const oud = document.title, m = mid && mach(mid);
@@ -1137,6 +1285,7 @@ $("#view").addEventListener("click", e => {
   const a = e.target.closest("[data-act]"); if (a) { setStatus(a.dataset.id, a.dataset.act); return; }
   const d = e.target.closest("[data-detail]"); if (d) { detail(d.dataset.detail); return; }
   const m = e.target.closest("[data-mach]"); if (m) { machineDetail(m.dataset.mach); return; }
+  const kk = e.target.closest("[data-keur]"); if (kk) { keuringDetail(kk.dataset.keur); return; }
   if (e.target.closest("[data-instel]")) { if (instelLijst.length) instelForm(instelLijst.slice(), 0); return; }
   if (e.target.id === "addMach") machineForm(null);
   if (e.target.id === "csvAlles") exporteer(null);

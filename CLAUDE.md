@@ -5,19 +5,21 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   Google laden: het lettertype (Barlow, OFL) staat in fonts/.
 - Taal in de app: Nederlands, komma als decimaalteken, informeel en kort.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
-  met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
+  met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, keuringen, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
   wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt). Verander bestaande
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
   uren, t, tKlaar, klaarDoor, thumb}; machine {id, naam, type, kenteken, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
-  {id o_..., machineId, t, uren, wat, door}. De startmachines hebben vaste id's v1..v17. meta[id] = {s: soort, g:
+  {id o_..., machineId, t, uren, wat, door}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
+  (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm}]}. De startmachines hebben vaste id's v1..v17. meta[id] = {s: soort, g:
   tijdstip laatste wijziging, weg: 1}. Elke wijziging gaat via wijzig(soort, obj) of verwijder(soort, id).
 - Groep: groep/apps-script.gs in een eigen Google Sheet (zie groep/HANDLEIDING.md), web-app-URL in GROEP_URL_VAST in
   index.html (zolang die leeg is staat er een veld Web-app-URL in Instellingen). Per record wint de nieuwste g;
   weggehaald = rij met weg "verwijderd". Foto's als bestand <id>.jpg in de Drive-map "Werkplaatsbord foto's" (id in scripteigenschap FOTOMAP_ID); versturen
   als {foto: {id, data, omschrijving}}, ophalen met ?foto=<id> (data-URL terug).
-  POST met Content-Type text/plain (geen preflight).
+  POST met Content-Type text/plain (geen preflight). GET geeft ook soorten (SOORTEN uit het script): soorten die het
+  script niet kent (ouder script: alleen storing, machine, onderhoud) houdt de app vast tot het script is bijgewerkt.
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.
 - Gebruik geen alert(), confirm() of prompt(); bevestigen met armed() (twee keer tikken) en foutteksten in het venster.
