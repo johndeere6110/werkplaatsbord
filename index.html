@@ -285,7 +285,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 15; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 16; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -361,6 +361,9 @@ let me = store.get("wpbNaam", "");
 let groep = store.get("wpbGroep", { code: "", aan: false });
 const groepUrl = () => GROEP_URL_VAST || store.get("wpbGroepUrl", "");
 const groepAan = () => !!(groep.aan && groep.code && groepUrl());
+// Pushmeldingen: vast id per apparaat (wpbApparaat) en de keuze van dit apparaat (wpbPush)
+const apparaatId = (() => { let a = store.get("wpbApparaat", ""); if (!/^a_[A-Za-z0-9]+$/.test(a)) { a = "a_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); store.set("wpbApparaat", a); } return a; })();
+let push = store.get("wpbPush", { aan: false, dringend: true, keuring: true });
 
 /* ---------- hulpjes ---------- */
 const $ = s => document.querySelector(s);
@@ -459,7 +462,7 @@ function maakFoto(file) {
 const isBeeld = d => typeof d === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d);
 
 /* ---------- groep (Google Sheet) ---------- */
-const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null, soorten: null };
+const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null, soorten: null, vapid: "" };
 // Een ouder Google-script kent alleen deze soorten (en zegt niet welke het kent); keuringen blijven dan hier tot het script is bijgewerkt
 const OUDE_SOORTEN = ["storing", "machine", "onderhoud"];
 const kanDelen = soort => (sync.soorten || OUDE_SOORTEN).includes(soort);
@@ -469,8 +472,8 @@ async function vraag(body, foto) {
   try {
     const code = groep.code.trim(), opts = { signal: ac ? ac.signal : undefined, cache: "no-store" };
     const res = body
-      ? await fetch(groepUrl(), Object.assign(opts, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ code }, body)) }))
-      : await fetch(groepUrl() + "?code=" + encodeURIComponent(code) + (foto ? "&foto=" + encodeURIComponent(foto) : ""), opts);
+      ? await fetch(groepUrl(), Object.assign(opts, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ code, apparaat: apparaatId }, body)) }))
+      : await fetch(groepUrl() + "?code=" + encodeURIComponent(code) + (foto ? "&foto=" + encodeURIComponent(foto) : "&apparaat=" + encodeURIComponent(apparaatId)), opts);
     return await res.json();
   } finally { if (t) clearTimeout(t); }
 }
@@ -516,6 +519,8 @@ async function syncNu() {
     if (!r || !r.ok) throw new Error(r && r.fout || "ophalen");
     const kKonNiet = !kanDelen("keuring");
     sync.soorten = Array.isArray(r.soorten) ? r.soorten.map(String) : OUDE_SOORTEN;
+    sync.vapid = typeof r.vapid === "string" ? r.vapid : "";
+    sync.aangemeld = r.aangemeld;
     if (kKonNiet && kanDelen("keuring") && teVersturen().length) nogEens = true; // script net bijgewerkt: keuringen meteen sturen
     const opServer = new Set();
     let veranderd = false;
@@ -544,6 +549,7 @@ async function syncNu() {
     }
     bewaar();
     sync.laatst = Date.now(); store.set("wpbLaatst", sync.laatst); sync.fout = "";
+    pushControle();
     if (veranderd) render();
   } catch (e) {
     sync.fout = String(e && e.message) === "code" ? "Groepscode klopt niet" : (navigator.onLine ? "Bijwerken lukte niet, probeert het zo opnieuw" : "Geen bereik, probeert het later opnieuw");
@@ -560,6 +566,55 @@ function statusTekst() {
   if (sync.fout) { el.classList.add("fout"); t.textContent = sync.fout; return; }
   el.classList.add("ok");
   t.textContent = sync.laatst ? "Groep bijgewerkt om " + fmtTijd(sync.laatst) + (teVersturen().length ? " · nog " + teVersturen().length + " te versturen" : "") : "Groep: nog niet bijgewerkt";
+}
+
+/* ---------- pushmeldingen ---------- */
+// De melding zelf is leeg; de service worker haalt de tekst op bij het script (?berichten=). Daarvoor bewaart de app
+// in de cache "wpb-push" waar en met welke code (de service worker kan niet bij localStorage).
+const pushKan = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const b64uBytes = s => { const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+async function pushConfig(nieuw) {
+  try {
+    const c = await caches.open("wpb-push"), oud = await c.match("config").then(r => r && r.json()).catch(() => null);
+    const cfg = { url: groepUrl(), code: groep.code.trim(), apparaat: apparaatId, laatst: (!nieuw && oud && oud.laatst) || Date.now() - 60000 };
+    await c.put("config", new Response(JSON.stringify(cfg), { headers: { "Content-Type": "application/json" } }));
+  } catch (e) {}
+}
+async function pushAan(keuze, stil) {
+  if (!pushKan()) throw new Error("Deze browser kan geen meldingen ontvangen.");
+  if (!sync.vapid) throw new Error("Het Google-script van de groep moet eerst bijgewerkt worden (zie handleiding).");
+  if (Notification.permission !== "granted") {
+    if (stil) throw new Error("geen toestemming");
+    if (await Notification.requestPermission() !== "granted") throw new Error("Meldingen zijn geblokkeerd. Zet ze aan bij de site-instellingen (slotje naast het adres) of bij de app-instellingen van de telefoon.");
+  }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && push.vapid && push.vapid !== sync.vapid) { await sub.unsubscribe().catch(() => {}); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(sync.vapid) });
+  const j = sub.toJSON();
+  await pushConfig(!push.aan);
+  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring } });
+  if (!r || !r.ok) throw new Error("Aanmelden bij de groep lukte niet" + (r && r.fout ? " (" + r.fout + ")" : "") + ".");
+  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
+  store.set("wpbPush", push);
+}
+async function pushUit() {
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
+  push = Object.assign({}, push, { aan: false, endpoint: "" }); store.set("wpbPush", push);
+  try { await vraag({ afmelden: 1 }); } catch (e) {}
+}
+// Bij het bijwerken: abonnement nog in orde? Zo niet (verlopen, nieuwe sleutel, toestemming weg) stil opnieuw aanmelden.
+let pushGecontroleerd = false;
+async function pushControle() {
+  if (pushGecontroleerd || !push.aan || !pushKan() || !groepAan() || !sync.vapid) return;
+  pushGecontroleerd = true;
+  try {
+    let sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    // Het script gooit een abonnement weg als de pushdienst zegt dat het niet meer bestaat: dan een nieuw aanvragen
+    if (sub && sync.aangemeld === false) { await sub.unsubscribe().catch(() => {}); sub = null; }
+    if (!sub || sub.endpoint !== push.endpoint || push.vapid !== sync.vapid || sync.aangemeld === false || Date.now() - (push.t || 0) > 7 * DAY) await pushAan(push, true);
+    else await pushConfig(false);
+  } catch (e) {}
 }
 
 /* ---------- lijst met storingen ---------- */
@@ -1222,6 +1277,39 @@ function afdrukken(mid) {
 }
 
 /* ---------- instellingen en groep ---------- */
+function meldingenHTML() {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!pushKan()) return `<p class="hint">${ios ? "Op een iPhone werken meldingen alleen als de app op het beginscherm staat (iOS 16.4 of nieuwer). Open hem dan vanaf het beginscherm." : "Deze browser kan geen meldingen ontvangen."}</p>`;
+  if (!sync.vapid) return `<p class="hint">${sync.soorten ? "Het Google-script van de groep moet eerst bijgewerkt worden (zie handleiding)." : "Nog niet bijgewerkt met de groep. Probeer het zo nog eens."}</p>`;
+  return `<label class="check"><input id="pD" type="checkbox" ${push.dringend !== false ? "checked" : ""}> Dringende storingen (meteen)</label>
+    <label class="check"><input id="pK" type="checkbox" ${push.keuring !== false ? "checked" : ""}> Keuringen en onderhoud (’s ochtends)</label>
+    ${push.aan ? '<p class="hint">Meldingen staan aan.</p>' : ""}
+    <div class="actions"><button class="btn${push.aan ? "" : " primary"}" id="pAan" type="button">${push.aan ? "Keuze opslaan" : "Meldingen aanzetten"}</button>${push.aan ? '<button class="btn" id="pTest" type="button">Testmelding</button><button class="btn warn" id="pUit" type="button">Uitzetten</button>' : ""}</div>
+    <p class="err" id="pErr" hidden></p>`;
+}
+function meldingenKnoppen(ov) {
+  const aan = ov.querySelector("#pAan"); if (!aan) return;
+  const err = ov.querySelector("#pErr"), fout = t => { err.textContent = t; err.hidden = false; };
+  const bezig = (b, ja) => { b.disabled = ja; };
+  aan.onclick = async () => {
+    err.hidden = true; bezig(aan, true);
+    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
+    catch (e) { fout(String(e && e.message || e)); bezig(aan, false); }
+  };
+  const t = ov.querySelector("#pTest");
+  t && (t.onclick = async () => {
+    err.hidden = true; bezig(t, true);
+    try {
+      const r = await vraag({ testmelding: 1 });
+      if (!r || !r.ok) fout("Lukte niet" + (r && r.fout ? " (" + r.fout + ")" : "") + ". Zet meldingen uit en weer aan.");
+      else if (r.status >= 200 && r.status < 300) toast("Verstuurd, komt zo binnen");
+      else fout(r.status === 404 || r.status === 410 ? "Dit abonnement bestaat niet meer. Zet meldingen uit en weer aan." : "De pushdienst weigerde de melding (code " + r.status + ").");
+    } catch (e) { fout(navigator.onLine ? "Versturen lukte niet." : "Geen bereik."); }
+    bezig(t, false);
+  });
+  const u = ov.querySelector("#pUit");
+  u && armed(u, "Zeker? Tik nog een keer", async () => { await pushUit(); toast("Meldingen uit"); instellingen(); });
+}
 function installLink(metGroep) { return SITE + "installeren.html" + (metGroep && groep.code ? "?groep=" + encodeURIComponent(groep.code.trim()) : ""); }
 function kopieer(tekst, vak) {
   const toon = () => { vak.hidden = false; vak.textContent = tekst; };
@@ -1237,6 +1325,7 @@ function instellingen(daarna) {
     ${GROEP_URL_VAST ? "" : `<div class="field"><label for="gUrl">Web-app-URL <span>(van het Google-script, eindigt op /exec)</span></label><input id="gUrl" type="url" value="${esc(store.get("wpbGroepUrl", ""))}" autocomplete="off" spellcheck="false"></div>`}
     <p class="err" id="err" hidden></p>
     <div class="actions"><button class="btn primary groot" id="sOk">Opslaan</button>${groepAan() ? '<button class="btn" id="sNu">Nu bijwerken</button>' : ""}</div>
+    ${groepAan() ? `<span class="lbl">Meldingen op dit apparaat</span>${meldingenHTML()}` : ""}
     <span class="lbl">Doorsturen</span>
     <div class="actions"><button class="btn" id="sLink">Kopieer installatielink</button>${groep.code ? '<button class="btn" id="sLinkG">Link met groep</button>' : ""}</div>
     <p class="copybox" id="sLinkTxt" hidden></p>
@@ -1250,12 +1339,13 @@ function instellingen(daarna) {
       const codeAnders = code !== groep.code;
       me = naam; store.set("wpbNaam", me); setWho();
       groep = { code, aan }; store.set("wpbGroep", groep);
-      if (codeAnders) { sync.laatst = 0; sync.fout = ""; }
+      if (codeAnders) { sync.laatst = 0; sync.fout = ""; if (push.aan) pushConfig(false); }
       closeSheet(); toast("Opgeslagen"); statusTekst();
       if (groepAan()) syncNu();
       daarna && daarna();
     };
     const nu = ov.querySelector("#sNu"); nu && (nu.onclick = () => { syncNu(); toast("Bijwerken…"); });
+    meldingenKnoppen(ov);
     const vak = ov.querySelector("#sLinkTxt");
     ov.querySelector("#sLink").onclick = () => kopieer(installLink(false), vak);
     const lg = ov.querySelector("#sLinkG"); lg && (lg.onclick = () => kopieer(installLink(true), vak));

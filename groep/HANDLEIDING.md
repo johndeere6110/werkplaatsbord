@@ -63,6 +63,18 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
 - **Script aangepast?** Plak de nieuwe [`apps-script.gs`](apps-script.gs) over de oude heen en sla op. Daarna
   Implementeren → *Implementaties beheren* → potloodje → Versie: *Nieuwe versie* → Implementeren. Zo blijft de URL
   hetzelfde. (Alleen opslaan is niet genoeg: de app praat met de geïmplementeerde versie.)
+- **Pushmeldingen aanzetten** (vanaf app-versie 16), één keer:
+  1. Plak de nieuwe `apps-script.gs` en sla op.
+  2. Kies bovenin de functie **meldingenInstellen** en klik op **Uitvoeren**. Google vraagt opnieuw toestemming (nu ook
+     voor "verbinding maken met een externe service": dat is het versturen van de meldingen, en voor triggers). Dit zet
+     de ochtendcontrole aan (elke dag tussen 7 en 8 uur) en maakt het sleutelpaar voor de meldingen.
+  3. Implementeer een nieuwe versie (zie hieronder).
+  4. Op elke telefoon: Instellingen (tandwieltje) → **Meldingen aanzetten** → toestaan. Met **Testmelding** zie je meteen
+     of het werkt. Op een iPhone alleen als de app op het beginscherm staat (iOS 16.4 of nieuwer).
+  - Blad **telefoons**: wie meldingen krijgt (ja/nee per soort). Een regel weghalen = die telefoon krijgt niks meer
+    (tot hij de app weer opent: dan meldt hij zich vanzelf opnieuw aan, als meldingen daar nog aan staan).
+  - Scripteigenschappen **VAPID_D** en **VAPID_PUB** zijn het sleutelpaar. Niet aanpassen of weggooien: dan moet iedereen
+    meldingen opnieuw aanzetten. **BERICHTEN** en **GEMELD** houdt het script zelf bij.
 - **Keuringen** worden pas gedeeld als het script ze kent (vanaf app-versie 15). Met een ouder script blijven ze op de
   telefoon waar ze zijn ingevuld, met een melding in het machinevenster; na het bijwerken worden ze vanzelf verstuurd.
 - **Code veranderen:** pas `GROEPSCODE` aan bij de scripteigenschappen. Iedereen moet dan de nieuwe code invullen

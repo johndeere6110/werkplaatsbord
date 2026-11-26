@@ -6,7 +6,8 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Taal in de app: Nederlands, komma als decimaalteken, informeel en kort.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
   met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, keuringen, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
-  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt). Verander bestaande
+  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt), wpbApparaat (vast id a_... per apparaat), wpbPush
+  ({aan, dringend, keuring, endpoint, vapid, t}). Verander bestaande
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
@@ -20,6 +21,11 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   als {foto: {id, data, omschrijving}}, ophalen met ?foto=<id> (data-URL terug).
   POST met Content-Type text/plain (geen preflight). GET geeft ook soorten (SOORTEN uit het script): soorten die het
   script niet kent (ouder script: alleen storing, machine, onderhoud) houdt de app vast tot het script is bijgewerkt.
+- Pushmeldingen (Web Push, VAPID): het script ondertekent zelf (ECDSA P-256 met BigInt, k volgens RFC 6979) en stuurt een
+  lege push (dus geen versleuteling). De service worker haalt de tekst op met ?berichten=<sinds>&apparaat=<id>; adres,
+  code, apparaat en laatst staan in de cache "wpb-push" (sleutel "config", gezet door de app). Abonnementen in blad
+  "telefoons"; POST {abonnement}, {afmelden}, {testmelding}; GET met &apparaat= geeft aangemeld (false = opnieuw
+  aanvragen). Elke POST stuurt apparaat mee (geen push naar jezelf). Trigger dagelijks() via meldingenInstellen().
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.
 - Gebruik geen alert(), confirm() of prompt(); bevestigen met armed() (twee keer tikken) en foutteksten in het venster.

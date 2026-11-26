@@ -42,6 +42,14 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
 - Losse dingen (brandblussers, ladders, stellingen): maak er een machine van in de categorie Overig.
 - Keuringen staan ook in de PDF en de Excel-export.
 
+## Meldingen
+- Instellingen → **Meldingen aanzetten**: een melding op de telefoon bij een nieuwe **dringende storing** (meteen,
+  niet voor wie hem meldt) en 's ochtends tussen 7 en 8 uur bij **keuringen** die gaan verlopen en **onderhoud** dat te laat
+  of binnenkort is. Per keuring komt een melding bij de eerste waarschuwing, 14 en 7 dagen van tevoren, de dag ervoor, op de
+  dag zelf en als hij verlopen is; niet elke dag opnieuw.
+- **Testmelding** om te kijken of het werkt. Werkt op Android; op iPhone alleen vanaf het beginscherm (iOS 16.4+).
+- Moet één keer aangezet worden in het Google-script: zie [groep/HANDLEIDING.md](groep/HANDLEIDING.md).
+
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een
 groepscode: zie [groep/HANDLEIDING.md](groep/HANDLEIDING.md).
