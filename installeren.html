@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Werkplaatsbord installeren</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b3a44">
+<meta name="description" content="Storingen melden met foto, per machine, en onderhoud bijhouden. Werkt op de telefoon.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Werkplaatsbord">
+<meta property="og:title" content="Werkplaatsbord installeren">
+<meta property="og:description" content="Storingen melden met foto, per machine, en onderhoud bijhouden. Werkt op de telefoon.">
+<meta property="og:image" content="https://johndeere6110.github.io/werkplaatsbord/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Werkplaatsbord">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Werkplaats">
+<style>
+@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/barlow-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-latin-600-normal.woff2) format("woff2")}
+:root{--bg:#f4f5f2;--surface:#fff;--fg:#1d2320;--muted:#646d66;--line:#e1e4de;--accent:#2b3a44;--on-accent:#fff;--roof:#e07a1f;color-scheme:light;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121614;--surface:#1a1f1c;--fg:#e7ebe6;--muted:#97a199;--line:#2b332e;--accent:#dbe3dd;--on-accent:#141917;--roof:#f08a2c;color-scheme:dark}}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:17px;line-height:1.5}
+main{max-width:520px;margin:0 auto;padding:max(24px,env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 40px max(18px,env(safe-area-inset-left,0px));display:grid;gap:18px}
+.kop{display:flex;gap:14px;align-items:center}
+.kop img{width:64px;height:64px;border-radius:15px}
+h1{margin:0;font-size:1.6rem;line-height:1.15;font-weight:600}
+.sub{margin:2px 0 0;color:var(--muted)}
+.blok{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.blok h2{margin:0 0 6px;font-size:1.05rem;font-weight:600}
+.blok ol{margin:0;padding-left:1.2em}
+.blok li+li{margin-top:4px}
+.knop{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:10px 20px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:600;text-decoration:none;border:0;font:inherit;font-weight:600;cursor:pointer}
+.knop.licht{background:var(--surface);color:var(--fg);border:1px solid var(--line)}
+.rij{display:flex;gap:10px;flex-wrap:wrap}
+.code{font-size:1.15rem;font-weight:600;letter-spacing:.03em;user-select:all;-webkit-user-select:all}
+.hint{color:var(--muted);font-size:.92rem;margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="kop"><img src="icon-192.png" alt=""><div><h1>Werkplaatsbord</h1><p class="sub">Storingen melden met foto, per machine, en onderhoud bijhouden.</p></div></div>
+
+  <div class="blok" id="groepBlok" hidden>
+    <h2>Je bent uitgenodigd voor de groep</h2>
+    <p class="hint">De app zet de groep vanzelf klaar en vraagt daarna alleen je naam. Lukt dat niet (soms op iPhone), vul de code dan zelf in bij Instellingen in de app:</p>
+    <p class="code" id="code"></p>
+    <div class="rij"><button class="knop licht" id="kopieer" type="button">Kopieer code</button></div>
+  </div>
+
+  <div class="rij">
+    <a class="knop" href="./">Open de app</a>
+    <button class="knop licht" id="installeer" type="button" hidden>Installeer</button>
+  </div>
+
+  <div class="blok">
+    <h2>Android (Chrome)</h2>
+    <ol>
+      <li>Open deze pagina in <b>Chrome</b> (niet in WhatsApp: tik op ⋮ en kies <i>Openen in Chrome</i>).</li>
+      <li>Tik op <b>Installeer</b> hierboven, of op ⋮ rechtsboven en dan <b>App installeren</b> of <b>Toevoegen aan startscherm</b>.</li>
+    </ol>
+  </div>
+  <div class="blok">
+    <h2>iPhone (Safari)</h2>
+    <ol>
+      <li>Open deze pagina in <b>Safari</b>.</li>
+      <li>Tik op het deel-icoon (vierkantje met pijl omhoog).</li>
+      <li>Kies <b>Zet op beginscherm</b> en tik op <b>Voeg toe</b>.</li>
+    </ol>
+  </div>
+  <p class="hint">Daarna staat het Werkplaatsbord als app op je telefoon, met het icoon met de sleutels.</p>
+</main>
+<script>
+(function () {
+  var code = "";
+  try { code = new URLSearchParams(location.search).get("groep") || ""; } catch (e) {}
+  if (code) {
+    try { localStorage.setItem("wpbGroepUitnodiging", JSON.stringify({ code: code.trim(), ts: Date.now() })); } catch (e) {}
+    document.getElementById("groepBlok").hidden = false;
+    document.getElementById("code").textContent = code;
+    document.getElementById("kopieer").onclick = function () {
+      var b = this;
+      try { navigator.clipboard.writeText(code).then(function () { b.textContent = "Gekopieerd"; }); } catch (e) {}
+    };
+  }
+  var uitstel = null, knop = document.getElementById("installeer");
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); uitstel = e; knop.hidden = false; });
+  knop.onclick = function () { if (uitstel) { uitstel.prompt(); uitstel = null; knop.hidden = true; } };
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+})();
+</script>
+</body>
+</html>

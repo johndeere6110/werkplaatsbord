@@ -1,0 +1,27 @@
+# Werkplaatsbord
+Web-app (PWA) voor de werkplaats: storingen melden met foto per machine, en onderhoud bijhouden. Zelfde opzet als de
+Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
+- index.html bevat de pagina (HTML, CSS en JS in één bestand). Geen build-stap, geen frameworks, niets van een CDN of
+  Google laden: het lettertype (Barlow, OFL) staat in fonts/.
+- Taal in de app: Nederlands, komma als decimaalteken, informeel en kort.
+- Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
+  met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
+  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging. Verander bestaande
+  sleutels niet. Foto's (verkleind, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
+- Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
+  uren, t, tKlaar, klaarDoor}; machine {id, naam, type, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
+  {id o_..., machineId, t, uren, wat, door}. De startmachines hebben vaste id's v1..v17. meta[id] = {s: soort, g:
+  tijdstip laatste wijziging, weg: 1}. Elke wijziging gaat via wijzig(soort, obj) of verwijder(soort, id).
+- Groep: groep/apps-script.gs in een eigen Google Sheet (zie groep/HANDLEIDING.md), web-app-URL in GROEP_URL_VAST in
+  index.html (zolang die leeg is staat er een veld Web-app-URL in Instellingen). Per record wint de nieuwste g;
+  weggehaald = rij met weg "verwijderd". Foto's in blad "fotos" in stukken van 45.000 tekens; ophalen met ?foto=<id>.
+  POST met Content-Type text/plain (geen preflight).
+- Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
+  visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.
+- Gebruik geen alert(), confirm() of prompt(); bevestigen met armed() (twee keer tikken) en foutteksten in het venster.
+- Bij elke wijziging: verhoog VERSIE in index.html én CACHE in sw.js (werkplaatsbord-v1 -> v2), anders krijgen
+  geïnstalleerde apps de update niet. Cachenamen beginnen met "werkplaatsbord-": de service worker ruimt alleen die op.
+- Eigen app-identiteit: manifest.webmanifest met "id": "/werkplaatsbord/". Niet veranderen.
+- Icoon: icon.svg is de bron (dakje met gekruiste steeksleutels); icon-192/512.png en apple-touch-icon.png (180) zijn
+  daaruit gemaakt.
+- Push direct naar main, zonder pull request (GitHub Pages draait vanaf main).

@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Werkplaatsbord</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b3a44">
+<meta name="description" content="Storingen melden met foto, per machine, en onderhoud bijhouden in de werkplaats.">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Werkplaats">
+<style>
+/* Lettertype staat in de app zelf (Barlow, SIL OFL; zie fonts/OFL.txt): geen verzoeken naar Google */
+@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/barlow-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-latin-600-normal.woff2) format("woff2")}
+/* Eén rustige app-kolom (telefoon), sticky kop met tabs, vaste onderbalk. Licht, weinig lijnen, één accent. */
+:root{
+  --bg:#f4f5f2; --surface:#ffffff; --surface-2:#eef0ec; --fg:#1d2320; --muted:#646d66; --line:#e1e4de;
+  --accent:#2b3a44; --on-accent:#ffffff; --roof:#e07a1f;
+  --urgent:#c2410c; --urgent-soft:#fdece2;
+  --busy:#1d5f8a; --busy-soft:#e3eff8;
+  --done:#3d6a39; --done-soft:#e6f0e2;
+  --old:#8a5f00; --old-soft:#fbf1d3;
+  --shadow:0 1px 2px rgba(20,30,25,.05),0 2px 8px rgba(20,30,25,.04);
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a1f1c; --surface-2:#232a26; --fg:#e7ebe6; --muted:#97a199; --line:#2b332e;
+  --accent:#dbe3dd; --on-accent:#141917; --roof:#f08a2c;
+  --urgent:#fb8f55; --urgent-soft:#38231a;
+  --busy:#7bb9e3; --busy-soft:#18293a;
+  --done:#93c78a; --done-soft:#1d2b1c;
+  --old:#e8bd52; --old-soft:#342a12;
+  --shadow:none; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a1f1c; --surface-2:#232a26; --fg:#e7ebe6; --muted:#97a199; --line:#2b332e;
+  --accent:#dbe3dd; --on-accent:#141917; --roof:#f08a2c;
+  --urgent:#fb8f55; --urgent-soft:#38231a;
+  --busy:#7bb9e3; --busy-soft:#18293a;
+  --done:#93c78a; --done-soft:#1d2b1c;
+  --old:#e8bd52; --old-soft:#342a12;
+  --shadow:none; color-scheme:dark}
+
+*,*::before,*::after{box-sizing:inherit}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+[hidden]{display:none!important}
+img{max-width:100%}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--busy);outline-offset:2px}
+.app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 120px}
+
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-block:14px 10px;display:grid;gap:10px}
+.toprow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-weight:600;font-size:1.4rem;letter-spacing:-.01em;margin:0;line-height:1.2;display:flex;align-items:center;gap:8px}
+h1 img{width:28px;height:28px;border-radius:7px}
+.who{border:0;background:var(--surface-2);border-radius:999px;padding:7px 12px;font-size:.88rem;color:var(--muted);white-space:nowrap;display:flex;gap:6px;align-items:center}
+.who b{color:var(--fg);font-weight:600}
+.syncstat{font-size:.82rem;color:var(--muted);margin:-6px 0 0;display:flex;gap:6px;align-items:center}
+.syncstat .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+.syncstat.ok .dot{background:var(--done)}
+.syncstat.fout .dot{background:var(--urgent)}
+.syncstat.bezig .dot{background:var(--busy)}
+
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--surface-2);border-radius:10px;padding:3px}
+.tabs button{border:0;background:transparent;border-radius:8px;padding:8px 4px;font-weight:500;font-size:.92rem;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:var(--shadow)}
+.tabs .n{font-size:.76rem;font-weight:600;min-width:1.6em;padding:1px 6px;border-radius:999px;background:var(--line);color:var(--fg);font-variant-numeric:tabular-nums}
+.tabs button[data-tab="dringend"] .n{background:var(--urgent-soft);color:var(--urgent)}
+
+.cats{display:flex;gap:6px;overflow-x:auto;padding:2px 0;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cats.wrap{flex-wrap:wrap;overflow:visible}
+.cats button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.9rem;font-weight:500;min-height:36px}
+.cats button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.cats .c{color:var(--muted);margin-left:6px;font-size:.78rem;font-variant-numeric:tabular-nums}
+.cats button[aria-pressed="true"] .c{color:inherit;opacity:.7}
+
+.list{display:grid;gap:12px;margin-top:4px}
+.empty{padding:40px 12px;text-align:center;color:var(--muted);margin:0}
+
+/* groep per machine */
+.group{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.ghead{width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px 2px;background:none;border:0;text-align:left;color:var(--fg)}
+.ghead:disabled{cursor:default;color:var(--fg)}
+.ghead .right{display:flex;gap:6px;align-items:center}
+.gcount{font-size:.82rem;color:var(--muted);white-space:nowrap}
+.chev{display:inline-block;color:var(--muted);font-size:.85rem;transition:transform .15s}
+.ghead[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.group.is-open .ghead{padding-bottom:6px}
+.gsum{display:grid;gap:3px;width:100%;text-align:left;background:none;border:0;padding:6px 14px 12px;overflow:hidden}
+.gl{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.95rem;padding-left:13px;position:relative;min-width:0}
+.gl::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--muted)}
+.gmore{font-size:.8rem;color:var(--muted);margin-top:4px}
+.gfoot{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 14px;color:var(--muted);font-size:.86rem}
+.mname{font-weight:600;font-size:1.05rem;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+.row{display:grid;grid-template-columns:52px 1fr;gap:12px;padding:10px 14px;position:relative}
+.row+.row{border-top:1px solid var(--line)}
+.row.dringend:not(.klaar)::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--urgent)}
+.thumb{width:52px;height:52px;border-radius:8px;background:var(--surface-2);overflow:hidden;display:grid;place-items:center;color:var(--muted);font-size:.7rem;text-align:center;position:relative;z-index:1;pointer-events:none;line-height:1.2}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .more{position:absolute;right:3px;bottom:3px;background:rgba(0,0,0,.6);color:#fff;font-weight:600;font-size:.7rem;border-radius:4px;padding:0 4px}
+.cbody{min-width:0;display:grid;gap:3px;align-content:start}
+.crow{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.age{font-size:.82rem;color:var(--muted);white-space:nowrap}
+.txt{margin:0;overflow-wrap:anywhere;font-weight:500;font-size:1rem;line-height:1.35}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.84rem;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 8px;font-weight:500;font-size:.8rem;white-space:nowrap}
+.chip.open,.chip.none{background:var(--surface-2);color:var(--muted)}
+.chip.klaar,.chip.ok,.chip.oh{background:var(--done-soft);color:var(--done)}
+.chip.oud,.chip.soon{background:var(--old-soft);color:var(--old)}
+.chip.dringend,.chip.late{background:var(--urgent-soft);color:var(--urgent)}
+.actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;position:relative;z-index:1}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 14px;font-weight:500;font-size:.94rem;min-height:42px}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.done{background:var(--done-soft);color:var(--done);border-color:transparent}
+.btn.warn{color:var(--urgent)}
+.row .actions .btn{min-height:38px;padding:5px 14px;font-size:.9rem}
+.row .open-detail{position:absolute;inset:0;background:none;border:0;width:100%}
+
+/* machines */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+.mtile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:left;display:grid;gap:4px;align-content:start;box-shadow:var(--shadow)}
+.mtile .t{font-size:.78rem;color:var(--muted)}
+.mtile .nm{font-weight:600;font-size:1rem;line-height:1.25}
+.mtile .st{font-size:.82rem;color:var(--muted)}
+.mtile .st b{color:var(--urgent);font-weight:600}
+.mtile .chip{margin-top:2px}
+.section-h{font-weight:600;text-transform:uppercase;font-size:.76rem;letter-spacing:.07em;color:var(--muted);margin:20px 0 0}
+.duelist{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px;box-shadow:var(--shadow)}
+.due{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:0;background:none;text-align:left;width:100%}
+.due+.due{border-top:1px solid var(--line)}
+.due .sub{display:block;font-size:.84rem;color:var(--muted)}
+.linkish{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:.88rem;justify-self:start}
+.voet{text-align:center;color:var(--muted);font-size:.78rem;margin-top:28px}
+
+/* onderbalk */
+.bottombar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);padding:8px max(16px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bb-inner{max-width:560px;margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
+.nav{border:0;background:none;padding:9px 6px;font-weight:500;font-size:.95rem;color:var(--muted);border-radius:9px}
+.nav[aria-current="page"]{color:var(--fg);font-weight:600}
+.fab{border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:1rem;border-radius:999px;padding:11px 22px;min-height:48px}
+
+/* sheet */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(10,14,12,.4);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:92%;overflow:auto;overscroll-behavior:contain;border-radius:16px 16px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sheet h2{font-weight:600;font-size:1.25rem;margin:0;line-height:1.25;text-wrap:balance}
+.sheet .grote{margin:0;font-size:1.05rem;font-weight:500;overflow-wrap:anywhere}
+.x{border:0;background:var(--surface-2);border-radius:999px;width:38px;height:38px;font-size:1.15rem;line-height:1;flex:none;color:var(--muted)}
+.field{display:grid;gap:6px}
+.field>label,.lbl{font-weight:500;font-size:.88rem;color:var(--muted)}
+.field>label span,.lbl span{font-weight:400}
+.hint{font-size:.86rem;color:var(--muted);margin:0}
+.fotos{display:flex;gap:8px;flex-wrap:wrap}
+.fbtn{display:grid;place-items:center;width:88px;height:88px;border:1.5px dashed var(--line);border-radius:10px;background:var(--surface);text-align:center;color:var(--muted);font-size:.8rem;cursor:pointer;line-height:1.3}
+.fbtn strong{color:var(--fg);display:block;font-size:.92rem;font-weight:600}
+.fprev{width:88px;height:88px;border-radius:10px;overflow:hidden;position:relative}
+.fprev img{width:100%;height:100%;object-fit:cover;display:block}
+.fprev button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:999px;border:0;background:rgba(0,0,0,.6);color:#fff;line-height:1}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+input[type=text],input[type=search],input[type=url],input[type=date],textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;min-height:46px;font-size:16px}
+textarea{min-height:84px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check{display:flex;gap:10px;align-items:center;font-size:.95rem}
+.check input{width:22px;height:22px}
+.mpick{display:flex;flex-wrap:wrap;gap:6px;max-height:200px;overflow:auto;padding:2px}
+.mpick button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 11px;font-weight:500;font-size:.94rem;text-align:left;min-height:42px}
+.mpick button small{display:block;font-weight:400;color:var(--muted);font-size:.76rem}
+.mpick button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.mpick button[aria-pressed="true"] small{color:inherit;opacity:.75}
+.prio{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prio button{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 10px;font-weight:500;min-height:50px}
+.prio button[aria-pressed="true"][data-p="dringend"]{border-color:var(--urgent);background:var(--urgent-soft);color:var(--urgent)}
+.prio button[aria-pressed="true"][data-p="tijd"]{border-color:var(--accent);background:var(--surface-2);font-weight:600}
+.groot{min-height:50px!important;font-size:1rem!important;font-weight:600}
+.err{color:var(--urgent);font-weight:500;font-size:.92rem;margin:0}
+.gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
+.gallery .gf{height:240px;flex:none;max-width:85%;scroll-snap-align:start;border-radius:12px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);font-size:.85rem;aspect-ratio:3/4}
+.gallery .gf:only-child{max-width:100%;width:100%;aspect-ratio:auto}
+.gallery img{height:100%;width:100%;object-fit:cover;display:block}
+.kv{display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kv div{display:flex;justify-content:space-between;gap:12px;font-size:.94rem;align-items:baseline}
+.kv div>span:first-child{color:var(--muted);flex:none}
+.kv div>span:last-child{text-align:right;min-width:0;overflow-wrap:anywhere}
+.hist{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.hist .h{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:10px 14px;border-top:1px solid var(--line)}
+.hist .h:first-child{border-top:0}
+.hist .hb{width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0;font:inherit;color:inherit;grid-template-columns:auto 1fr auto;align-items:start}
+.hist .hb:first-child{border-top:0}
+.hist .hb:active{background:var(--surface-2)}
+.hist .go{color:var(--muted);font-size:1.2rem;line-height:1.2}
+.hist .d{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.84rem;white-space:nowrap}
+.hist p{margin:0;overflow-wrap:anywhere;font-size:.95rem}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:1.35rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:.78rem;color:var(--muted)}
+.copybox{font-size:.84rem;word-break:break-all;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;user-select:all;-webkit-user-select:all}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:999px;font-weight:500;font-size:.92rem;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="toprow">
+      <h1><img src="icon-192.png" alt="">Werkplaatsbord</h1>
+      <button class="who" id="whoBtn" type="button" aria-label="Instellingen"><b id="whoName">Naam instellen</b> <span aria-hidden="true">⚙</span></button>
+    </div>
+    <p class="syncstat" id="syncstat"><span class="dot"></span><span id="syncTxt">Alleen op deze telefoon</span></p>
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="dringend" aria-selected="true">Dringend <span class="n" id="n-dringend">0</span></button>
+      <button role="tab" data-tab="tijd" aria-selected="false">Als er tijd is <span class="n" id="n-tijd">0</span></button>
+      <button role="tab" data-tab="klaar" aria-selected="false">Klaar</button>
+    </div>
+    <div class="cats" id="mcats" hidden></div>
+  </header>
+  <main id="view"></main>
+  <p class="voet" id="voet"></p>
+</div>
+
+<nav class="bottombar">
+  <div class="bb-inner">
+    <button class="nav" id="navMeld" aria-current="page" type="button">Storingen</button>
+    <button class="fab" id="fab" type="button">+ Storing</button>
+    <button class="nav" id="navMach" type="button">Machines</button>
+  </div>
+</nav>
+
+<div id="sheetRoot"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const VERSIE = 1; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const GROEP_URL_VAST = ""; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
+const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
+const DAY = 86400000, MAXFOTO = 4;
+
+/* ---------- opslag ---------- */
+// localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein): alleen sleutels die met "wpb" beginnen.
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+// Foto's in IndexedDB (database "werkplaatsbord", store "fotos": id -> data-URL)
+const fotoDb = (() => {
+  let p = null;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open("werkplaatsbord", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("fotos");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = (mode, fn) => open().then(d => new Promise((res, rej) => {
+    const t = d.transaction("fotos", mode), q = fn(t.objectStore("fotos"));
+    t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  }));
+  return { get: k => tx("readonly", s => s.get(k)), set: (k, v) => tx("readwrite", s => s.put(v, k)), del: k => tx("readwrite", s => s.delete(k)) };
+})();
+
+const LIJST = { machine: "machines", storing: "meldingen", onderhoud: "onderhoud" };
+const CATS = ["Trekkers", "Kranen", "Shovels", "Werktuigen", "Overig"];
+
+function startMachines() {
+  const M = (id, naam, type, cat) => ({ id, naam, type, cat, urenteller: cat !== "Werktuigen" && cat !== "Overig", uren: null, interval: {} });
+  return [
+    M("v1", "Volvo L60E", "Shovel", "Shovels"), M("v2", "Volvo L60F", "Shovel", "Shovels"),
+    M("v3", "Volvo mobiele kraan (oud)", "Mobiele kraan", "Kranen"), M("v4", "Volvo mobiele kraan (Dennis)", "Mobiele kraan", "Kranen"),
+    M("v5", "Doosan mobiele kraan", "Mobiele kraan", "Kranen"), M("v6", "Doosan rupskraan", "Rupskraan", "Kranen"),
+    M("v7", "Kobelco rupskraan (groot)", "Rupskraan", "Kranen"),
+    M("v8", "Valtra A93", "Trekker", "Trekkers"), M("v9", "Valtra N154", "Trekker", "Trekkers"), M("v10", "Valtra N175", "Trekker", "Trekkers"),
+    M("v11", "Valtra T214", "Trekker", "Trekkers"), M("v12", "Valtra T234", "Trekker", "Trekkers"), M("v13", "New Holland T7070", "Trekker", "Trekkers"),
+    M("v14", "John Deere 6140", "Trekker", "Trekkers"), M("v15", "John Deere 3045", "Trekker", "Trekkers"),
+    M("v16", "John Deere 3046R (Andy)", "Trekker", "Trekkers"), M("v17", "John Deere 3046R (Sandy)", "Trekker", "Trekkers")
+  ];
+}
+
+// db = de gegevens; meta[id] = {s: soort, g: tijdstip laatste wijziging, weg: 1 als weggehaald}; dirty = nog naar de groep sturen
+let opgeslagen = store.get("wpbData", null);
+if (!opgeslagen) {
+  const machines = startMachines(), meta = {};
+  machines.forEach(m => meta[m.id] = { s: "machine", g: 1 }); // g = 1: alles wat al in de groep staat wint
+  opgeslagen = { machines, meldingen: [], onderhoud: [], meta, dirty: [] };
+}
+const db = { machines: opgeslagen.machines || [], meldingen: opgeslagen.meldingen || [], onderhoud: opgeslagen.onderhoud || [] };
+const meta = opgeslagen.meta || {};
+const dirty = new Set(opgeslagen.dirty || []);
+function bewaar() {
+  if (!store.set("wpbData", { machines: db.machines, meldingen: db.meldingen, onderhoud: db.onderhoud, meta, dirty: [...dirty] }))
+    toast("Opslaan op deze telefoon lukte niet (geheugen vol?)");
+}
+bewaar();
+function wijzig(soort, obj) {
+  const arr = db[LIJST[soort]], i = arr.findIndex(o => o.id === obj.id);
+  if (i < 0) arr.push(obj); else arr[i] = obj;
+  meta[obj.id] = { s: soort, g: Math.max(Date.now(), ((meta[obj.id] || {}).g || 0) + 1) };
+  dirty.add(obj.id); bewaar(); planSync();
+}
+function verwijder(soort, id) {
+  db[LIJST[soort]] = db[LIJST[soort]].filter(o => o.id !== id);
+  meta[id] = { s: soort, g: Math.max(Date.now(), ((meta[id] || {}).g || 0) + 1), weg: 1 };
+  dirty.add(id); bewaar(); planSync();
+}
+const nieuwId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+let me = store.get("wpbNaam", "");
+let groep = store.get("wpbGroep", { code: "", aan: false });
+const groepUrl = () => GROEP_URL_VAST || store.get("wpbGroepUrl", "");
+const groepAan = () => !!(groep.aan && groep.code && groepUrl());
+
+/* ---------- hulpjes ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const mach = id => db.machines.find(m => m.id === id);
+const mName = x => x.machineId ? (mach(x.machineId)?.naam || "Onbekende machine") : (x.machineVrij || "Overig");
+const nf = n => Number(n).toLocaleString("nl-NL");
+function ago(ts) { const d = Math.floor((Date.now() - ts) / DAY); if (d < 1) return "vandaag"; if (d < 2) return "gisteren"; if (d < 14) return d + " dagen"; if (d < 60) return Math.floor(d / 7) + " weken"; return Math.floor(d / 30) + " maanden"; }
+function span(d) { if (d <= 1) return "1 dag"; if (d < 14) return d + " dagen"; if (d < 60) return Math.round(d / 7) + " weken"; return Math.round(d / 30) + " maanden"; }
+const fmtDate = ts => new Date(ts).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "2-digit" });
+const fmtTijd = ts => new Date(ts).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+const isOld = x => x.status !== "klaar" && (Date.now() - x.t) > 14 * DAY;
+const STAT = { open: "Open", bezig: "Open", klaar: "Klaar" };
+const OHL = { late: "Te laat", soon: "Binnenkort", ok: "Op schema", none: "Geen interval" };
+const addMonths = (ts, n) => { const d = new Date(ts); d.setMonth(d.getMonth() + n); return d.getTime(); };
+const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid).sort((a, b) => b.t - a.t)[0];
+const numOrNull = v => { v = String(v ?? "").replace(/\./g, "").replace(",", ".").trim(); if (v === "") return null; const n = Math.round(Number(v)); return isNaN(n) ? null : n; };
+
+function catOf(m) {
+  if (m.cat) return m.cat;
+  const t = (m.type || "").toLowerCase();
+  if (t.includes("trekker")) return "Trekkers";
+  if (t.includes("kraan")) return "Kranen";
+  if (t.includes("shovel")) return "Shovels";
+  if (/maai|hark|tank|wagen|kipper|ploeg|cultivator|spuit|schudder|pers|zaai|frees|eg\b|werktuig|bak|klepel|bezem|veeg/.test(t)) return "Werktuigen";
+  return "Overig";
+}
+function ohStatus(m) {
+  const iv = m.interval || {};
+  if (!iv.uren && !iv.maanden) return { lvl: "none", txt: "Geen onderhoudsinterval ingesteld" };
+  const last = lastOh(m.id);
+  if (!last) return { lvl: "soon", txt: "Nog geen beurt vastgelegd" };
+  let lvl = "ok"; const parts = [];
+  const bump = l => { if (l === "late" || (l === "soon" && lvl === "ok")) lvl = l; };
+  if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; parts.push(r >= 0 ? `nog ${nf(r)} uur` : `${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
+  if (iv.maanden) { const d = Math.round((addMonths(last.t, iv.maanden) - Date.now()) / DAY); parts.push(d >= 0 ? `over ${span(d)}` : `${span(-d)} te laat`); bump(d < 0 ? "late" : d <= 30 ? "soon" : "ok"); }
+  return { lvl, txt: parts.join(" · ") || "Urenstand onbekend" };
+}
+const ivTxt = iv => [iv.uren ? `elke ${nf(iv.uren)} uur` : "", iv.maanden ? `elke ${iv.maanden} maanden` : ""].filter(Boolean).join(" of ") || "niet ingesteld";
+function bumpUren(mid, u) { const m = mach(mid); if (m && u != null && !isNaN(u) && (m.uren == null || u > m.uren)) wijzig("machine", Object.assign({}, m, { uren: u })); }
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2400); }
+function setWho() { $("#whoName").textContent = me || "Naam instellen"; }
+
+/* ---------- foto's ---------- */
+const fotoMem = new Map(), fotoBezig = new Map(), fotoMis = new Map();
+function fotoUrl(id) {
+  if (fotoMem.has(id)) return Promise.resolve(fotoMem.get(id));
+  if (fotoBezig.has(id)) return fotoBezig.get(id);
+  if (Date.now() - (fotoMis.get(id) || 0) < 60000) return Promise.resolve(null);
+  const p = fotoDb.get(id).catch(() => null).then(async d => {
+    if (d) return d;
+    if (!groepAan() || !navigator.onLine) return null;
+    try { const r = await vraag(null, id); if (r && r.ok && r.data) { fotoDb.set(id, r.data).catch(() => {}); return r.data; } } catch (e) {}
+    return null;
+  }).then(d => { fotoBezig.delete(id); if (d) fotoMem.set(id, d); else fotoMis.set(id, Date.now()); return d; });
+  fotoBezig.set(id, p); return p;
+}
+function vulFotos(root) {
+  root.querySelectorAll("[data-foto]").forEach(el => {
+    if (el.dataset.klaar) return; el.dataset.klaar = "1";
+    fotoUrl(el.dataset.foto).then(u => {
+      const ph = el.querySelector(".ph");
+      if (u) { const img = document.createElement("img"); img.alt = "Foto"; img.src = u; ph ? ph.replaceWith(img) : el.prepend(img); }
+      else if (ph) ph.textContent = "foto nog niet binnen";
+    });
+  });
+}
+function resize(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => { const img = new Image(); img.onload = () => {
+      const max = 1000, s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL("image/jpeg", 0.65));
+    }; img.onerror = rej; img.src = r.result; };
+    r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+
+/* ---------- groep (Google Sheet) ---------- */
+const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null };
+async function vraag(body, foto) {
+  const ac = typeof AbortController === "function" ? new AbortController() : null, t = ac ? setTimeout(() => ac.abort(), 30000) : null;
+  try {
+    const code = groep.code.trim(), opts = { signal: ac ? ac.signal : undefined, cache: "no-store" };
+    const res = body
+      ? await fetch(groepUrl(), Object.assign(opts, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ code }, body)) }))
+      : await fetch(groepUrl() + "?code=" + encodeURIComponent(code) + (foto ? "&foto=" + encodeURIComponent(foto) : ""), opts);
+    return await res.json();
+  } finally { if (t) clearTimeout(t); }
+}
+function omschr(soort, o) {
+  if (soort === "storing") return [mName(o), o.tekst, o.prio === "dringend" ? "dringend" : "als er tijd is", o.status === "klaar" ? "klaar" : "open"].join(" · ");
+  if (soort === "machine") return `${o.naam} (${catOf(o)})`;
+  return [mach(o.machineId)?.naam || "?", o.wat, o.uren != null ? nf(o.uren) + " uur" : ""].filter(Boolean).join(" · ");
+}
+function rijVan(id) {
+  const m = meta[id]; if (!m) return null;
+  if (m.weg) return { id, soort: m.s, gewijzigd: m.g, van: me, weg: true };
+  const o = db[LIJST[m.s]].find(x => x.id === id); if (!o) return null;
+  return { id, soort: m.s, gewijzigd: m.g, van: me, omschrijving: omschr(m.s, o), data: o };
+}
+function planSync(ms) { if (!groepAan()) { statusTekst(); return; } clearTimeout(sync.timer); sync.timer = setTimeout(syncNu, ms == null ? 2500 : ms); statusTekst(); }
+async function syncNu() {
+  if (!groepAan() || sync.bezig) return;
+  sync.bezig = true; statusTekst();
+  let nogEens = false;
+  try {
+    // 1. foto's die nog niet in de groep staan
+    let wacht = store.get("wpbFotoWacht", []);
+    for (const fid of [...wacht]) {
+      const d = await fotoDb.get(fid).catch(() => null);
+      if (d) { const r = await vraag({ foto: { id: fid, data: d } }); if (!r || !r.ok) throw new Error(r && r.fout || "foto"); }
+      wacht = store.get("wpbFotoWacht", []).filter(x => x !== fid); store.set("wpbFotoWacht", wacht);
+    }
+    // 2. eigen wijzigingen versturen
+    const ids = [...dirty], gBij = {}, stuur = [];
+    ids.forEach(id => { const r = rijVan(id); if (r) { stuur.push(r); gBij[id] = r.gewijzigd; } else dirty.delete(id); });
+    for (let i = 0; i < stuur.length; i += 100) {
+      const r = await vraag({ rijen: stuur.slice(i, i + 100) });
+      if (!r || !r.ok) throw new Error(r && r.fout || "versturen");
+    }
+    ids.forEach(id => { if (meta[id] && meta[id].g === gBij[id]) dirty.delete(id); });
+    // 3. ophalen wat de anderen deden
+    const r = await vraag(null);
+    if (!r || !r.ok) throw new Error(r && r.fout || "ophalen");
+    const opServer = new Set();
+    let veranderd = false;
+    for (const row of r.rijen || []) {
+      if (!LIJST[row.soort]) continue;
+      opServer.add(row.id);
+      if (dirty.has(row.id)) continue;
+      const lg = (meta[row.id] || {}).g || 0;
+      if (row.gewijzigd <= lg) continue;
+      const arr = LIJST[row.soort];
+      if (row.weg) {
+        db[arr] = db[arr].filter(o => o.id !== row.id);
+        meta[row.id] = { s: row.soort, g: row.gewijzigd, weg: 1 };
+      } else {
+        let o; try { o = JSON.parse(row.data); } catch (e) { continue; }
+        if (!o || o.id !== row.id) continue;
+        const i = db[arr].findIndex(x => x.id === row.id);
+        if (i < 0) db[arr].push(o); else db[arr][i] = o;
+        meta[row.id] = { s: row.soort, g: row.gewijzigd };
+      }
+      veranderd = true;
+    }
+    // 4. wat hier staat maar nog niet in de groep: alsnog sturen (bv. de eerste keer meedoen)
+    for (const soort of Object.keys(LIJST)) for (const o of db[LIJST[soort]]) {
+      if (!opServer.has(o.id) && !dirty.has(o.id)) { meta[o.id] = { s: soort, g: Math.max((meta[o.id] || {}).g || 0, 2) }; dirty.add(o.id); nogEens = true; }
+    }
+    bewaar();
+    sync.laatst = Date.now(); store.set("wpbLaatst", sync.laatst); sync.fout = "";
+    if (veranderd) render();
+  } catch (e) {
+    sync.fout = String(e && e.message) === "code" ? "Groepscode klopt niet" : (navigator.onLine ? "Bijwerken lukte niet, probeert het zo opnieuw" : "Geen bereik, probeert het later opnieuw");
+  } finally {
+    sync.bezig = false; statusTekst();
+    if (nogEens || dirty.size) planSync(nogEens ? 300 : 30000);
+  }
+}
+function statusTekst() {
+  const el = $("#syncstat"), t = $("#syncTxt");
+  el.className = "syncstat";
+  if (!groepAan()) { t.textContent = groep.aan && !groepUrl() ? "Groep nog niet ingesteld" : "Alleen op deze telefoon"; return; }
+  if (sync.bezig) { el.classList.add("bezig"); t.textContent = "Bijwerken…"; return; }
+  if (sync.fout) { el.classList.add("fout"); t.textContent = sync.fout; return; }
+  el.classList.add("ok");
+  t.textContent = sync.laatst ? "Groep bijgewerkt om " + fmtTijd(sync.laatst) + (dirty.size ? " · nog " + dirty.size + " te versturen" : "") : "Groep: nog niet bijgewerkt";
+}
+
+/* ---------- lijst met storingen ---------- */
+let tab = "dringend", view = "meldingen", mcat = "Alles";
+const openGroups = new Set();
+function counts() {
+  const open = db.meldingen.filter(x => x.status !== "klaar");
+  $("#n-dringend").textContent = open.filter(x => x.prio === "dringend").length;
+  $("#n-tijd").textContent = open.filter(x => x.prio === "tijd").length;
+}
+function rowHTML(x, showMachine) {
+  const old = isOld(x), f = x.fotos || [];
+  const more = f.length > 1 ? `<span class="more">+${f.length - 1}</span>` : "";
+  const thumb = f.length ? `<span class="thumb" data-foto="${esc(f[0])}"><span class="ph">…</span>${more}</span>` : '<span class="thumb">geen<br>foto</span>';
+  const act = x.status !== "klaar" ? `<button class="btn done" data-act="klaar" data-id="${esc(x.id)}">Klaar</button>` : "";
+  const when = x.status === "klaar" ? "klaar, " + ago(x.tKlaar || x.t) : ago(x.t);
+  return `<div class="row ${x.prio} ${x.status}">
+    <button class="open-detail" data-detail="${esc(x.id)}" aria-label="Storing ${esc(mName(x))} openen"></button>
+    ${thumb}
+    <div class="cbody">
+      ${showMachine ? `<div class="crow"><span class="mname">${esc(mName(x))}</span><span class="age">${when}</span></div>` : ""}
+      <p class="txt">${esc(x.tekst)}</p>
+      <div class="meta">
+        ${x.status === "klaar" ? `<span class="chip klaar">Klaar${x.klaarDoor ? " · " + esc(x.klaarDoor) : ""}</span>` : ""}
+        ${old ? '<span class="chip oud">' + Math.floor((Date.now() - x.t) / DAY) + " dagen open</span>" : ""}
+        <span>door ${esc(x.door)}${showMachine ? "" : " · " + when}</span>
+      </div>
+      ${act ? `<div class="actions">${act}</div>` : ""}
+    </div></div>`;
+}
+function renderMeldingen() {
+  $("#tabs").hidden = false; $("#mcats").hidden = true;
+  if (tab === "klaar") {
+    const items = db.meldingen.filter(x => x.status === "klaar").sort((a, b) => (b.tKlaar || 0) - (a.tKlaar || 0)).slice(0, 100);
+    $("#view").innerHTML = `<div class="list">${items.length ? `<div class="group">${items.map(x => rowHTML(x, true)).join("")}</div>` : '<p class="empty">Nog niks afgerond.</p>'}</div>`;
+    return;
+  }
+  const items = db.meldingen.filter(x => x.status !== "klaar" && x.prio === tab);
+  const groups = new Map();
+  items.forEach(x => { const k = x.machineId || ("vrij:" + (x.machineVrij || "Overig").toLowerCase()); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); });
+  const arr = [...groups.entries()].map(([k, list]) => { list.sort((a, b) => a.t - b.t); return { k, list, oldest: list[0].t }; }).sort((a, b) => a.oldest - b.oldest);
+  const empty = { dringend: "Niks dringends. Mooi zo.", tijd: "Lijst is leeg. Tijd voor koffie." }[tab];
+  $("#view").innerHTML = `<div class="list">${arr.length ? arr.map(g => {
+    const m = g.k.startsWith("vrij:") ? null : mach(g.k);
+    const naam = esc(mName(g.list[0])), n = g.list.length;
+    if (n === 1) return `<section class="group"><button class="ghead" ${m ? `data-mach="${esc(m.id)}"` : "disabled"}><span class="mname">${naam}</span></button>${rowHTML(g.list[0], false)}</section>`;
+    const open = openGroups.has(g.k), kk = esc(g.k);
+    const hd = `<button class="ghead" data-toggle="${kk}" aria-expanded="${open}"><span class="mname">${naam}</span><span class="right"><span class="gcount">${n} storingen</span><span class="chev" aria-hidden="true">▾</span></span></button>`;
+    const body = open
+      ? g.list.map(x => rowHTML(x, false)).join("") + (m ? `<button class="gfoot" data-mach="${esc(m.id)}">Alles van ${naam} ›</button>` : "")
+      : `<button class="gsum" data-toggle="${kk}" aria-label="Open ${n} storingen van ${naam}">${g.list.slice(0, 3).map(x => `<span class="gl">${esc(x.tekst)}</span>`).join("")}<span class="gmore">${n > 3 ? `En nog ${n - 3} meer. Tik om alles te zien` : "Tik om te openen"}</span></button>`;
+    return `<section class="group${open ? " is-open" : ""}">${hd}${body}</section>`;
+  }).join("") : `<p class="empty">${empty}</p>`}</div>`;
+}
+
+/* ---------- machines ---------- */
+function catChips(list, sel, attr) {
+  const cnt = c => c === "Alles" ? list.length : list.filter(m => catOf(m) === c).length;
+  return ["Alles", ...CATS].filter(c => c === "Alles" || cnt(c) > 0).map(c => `<button type="button" ${attr}="${c}" aria-pressed="${sel === c}">${c}<span class="c">${cnt(c)}</span></button>`).join("");
+}
+function renderMachines() {
+  $("#tabs").hidden = true;
+  const mc = $("#mcats"); mc.hidden = false; mc.innerHTML = catChips(db.machines, mcat, "data-cat");
+  const yr = new Date().getFullYear();
+  const ms = db.machines.filter(m => mcat === "Alles" || catOf(m) === mcat).sort((a, b) => a.naam.localeCompare(b.naam, "nl", { numeric: true }));
+  const due = ms.map(m => ({ m, s: ohStatus(m) })).filter(o => o.s.lvl === "late" || o.s.lvl === "soon").sort((a, b) => (a.s.lvl === "late" ? 0 : 1) - (b.s.lvl === "late" ? 0 : 1));
+  const anyIv = ms.some(m => m.interval && (m.interval.uren || m.interval.maanden));
+  const dueHTML = due.length ? `<div class="duelist">${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${esc(m.naam)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
+    : `<p class="empty" style="padding:16px">${anyIv ? "Er is niks aan de beurt." : "Nog geen onderhoudsintervallen ingesteld. Tik op een machine en kies Bewerken."}</p>`;
+  const tile = m => {
+    const all = db.meldingen.filter(x => x.machineId === m.id);
+    const open = all.filter(x => x.status !== "klaar").length;
+    const dit = all.filter(x => new Date(x.t).getFullYear() === yr).length;
+    const s = ohStatus(m);
+    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span><span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${s.lvl !== "none" ? `<span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></span>` : ""}</button>`;
+  };
+  const grid = mcat === "Alles"
+    ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
+    : `<h2 class="section-h">${mcat} (${ms.length})</h2><div class="mgrid">${ms.map(tile).join("")}</div>`;
+  $("#view").innerHTML = `<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
+   <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button></div>`;
+}
+
+function render() {
+  counts();
+  if (mcat !== "Alles" && !db.machines.some(m => catOf(m) === mcat)) mcat = "Alles";
+  view === "meldingen" ? renderMeldingen() : renderMachines();
+  vulFotos($("#view"));
+  if (view === "meldingen") { $("#navMeld").setAttribute("aria-current", "page"); $("#navMach").removeAttribute("aria-current"); }
+  else { $("#navMach").setAttribute("aria-current", "page"); $("#navMeld").removeAttribute("aria-current"); }
+}
+
+/* ---------- vensters ---------- */
+let sheetNa = null;
+function openSheet(html, onMount) {
+  const root = $("#sheetRoot");
+  root.innerHTML = `<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  const ov = $("#ov"); ov.addEventListener("click", e => { if (e.target === ov) closeSheet(); });
+  ov.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeSheet));
+  sheetNa = null;
+  onMount && onMount(ov);
+  vulFotos(ov);
+  ov.querySelector(".sheet").scrollTop = 0;
+}
+function closeSheet() { $("#sheetRoot").innerHTML = ""; }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+const head = t => `<div class="sheet-h"><h2>${t}</h2><button class="x" data-close aria-label="Sluiten">×</button></div>`;
+// Twee keer tikken om te bevestigen (geen confirm()); armed(knop, tekst-bij-eerste-tik, actie)
+function armed(btn, tekst, doe) {
+  btn.addEventListener("click", () => { if (!btn.dataset.sure) { btn.dataset.sure = "1"; btn.dataset.oud = btn.textContent; btn.textContent = tekst; setTimeout(() => { if (btn.isConnected && btn.dataset.sure) { delete btn.dataset.sure; btn.textContent = btn.dataset.oud; } }, 4000); return; } doe(); });
+}
+
+function setStatus(id, st) {
+  const x = db.meldingen.find(m => m.id === id); if (!x) return;
+  const doIt = () => {
+    const n = Object.assign({}, x, { status: st });
+    if (st === "klaar") { n.tKlaar = Date.now(); n.klaarDoor = me; }
+    if (st === "open") { delete n.tKlaar; delete n.klaarDoor; }
+    wijzig("storing", n); render(); toast(st === "klaar" ? "Afgevinkt" : "Weer open gezet");
+  };
+  me ? doIt() : instellingen(doIt);
+}
+
+function newMelding(preMach) {
+  const last = {}; db.meldingen.forEach(x => { if (x.machineId) last[x.machineId] = Math.max(last[x.machineId] || 0, x.t); });
+  const ordered = [...db.machines].sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0) || a.naam.localeCompare(b.naam, "nl", { numeric: true }));
+  const st = { fotos: [], machineId: preMach || null, overig: false, prio: null, cat: "Alles" };
+  openSheet(`${head("Storing melden")}
+    <div class="field"><span class="lbl">Foto's <span>(max. ${MAXFOTO})</span></span>
+      <div class="fotos" id="fotos"></div>
+      <input class="vh" id="cam" type="file" accept="image/*" capture="environment">
+      <input class="vh" id="gal" type="file" accept="image/*" multiple></div>
+    <div class="field"><label for="msearch">Welke machine?</label>
+      <input id="msearch" type="search" placeholder="Zoek op naam of soort" autocomplete="off">
+      <div class="cats" id="fcats"></div>
+      <div class="mpick" id="mpick"></div>
+      <input id="mvrij" type="text" placeholder="Wat is het dan?" hidden></div>
+    <div class="field" id="urenF" hidden><label for="uren">Urenstand <span>(als je 'm weet)</span></label>
+      <input id="uren" type="text" inputmode="numeric"></div>
+    <div class="field"><label for="tekst">Wat is er aan de hand?</label>
+      <textarea id="tekst" placeholder="Kort is prima. Bijv. 'slang lekt achter links'"></textarea></div>
+    <div class="field"><span class="lbl">Hoe dringend?</span>
+      <div class="prio"><button type="button" data-p="dringend" aria-pressed="false">Dringend</button><button type="button" data-p="tijd" aria-pressed="false">Als er tijd is</button></div></div>
+    <div class="field"><label for="door">Gemeld door</label><input id="door" type="text" value="${esc(me)}" placeholder="Jouw naam"></div>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="plaats">Storing melden</button>`, ov => {
+    const pick = ov.querySelector("#mpick"), q = ov.querySelector("#msearch"), vrij = ov.querySelector("#mvrij"), urenF = ov.querySelector("#urenF"), urenI = ov.querySelector("#uren");
+    const drawFotos = () => {
+      ov.querySelector("#fotos").innerHTML = st.fotos.map((f, i) => `<div class="fprev"><img src="${f.data}" alt="Foto ${i + 1}"><button type="button" data-rm="${i}" aria-label="Foto ${i + 1} weghalen">×</button></div>`).join("") +
+        (st.fotos.length < MAXFOTO ? `<label class="fbtn" for="cam"><span><strong>Camera</strong>foto maken</span></label><label class="fbtn" for="gal"><span><strong>Galerij</strong>foto's kiezen</span></label>` : "");
+    };
+    const drawUren = () => { const m = st.machineId && mach(st.machineId); urenF.hidden = !(m && m.urenteller); if (m && m.urenteller) urenI.placeholder = m.uren != null ? `Laatst bekend: ${nf(m.uren)}` : "Bijv. 4650"; };
+    const drawPick = () => {
+      const s = q.value.trim().toLowerCase();
+      ov.querySelector("#fcats").innerHTML = catChips(db.machines, st.cat, "data-fc");
+      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || (m.naam + " " + (m.type || "")).toLowerCase().includes(s)));
+      pick.innerHTML = list.map(m => `<button type="button" data-m="${esc(m.id)}" aria-pressed="${st.machineId === m.id}">${esc(m.naam)}<small>${esc(m.type || catOf(m))}</small></button>`).join("") +
+        `<button type="button" data-m="__overig" aria-pressed="${st.overig}">Overig<small>staat er niet tussen</small></button>`;
+    };
+    drawFotos(); drawPick(); drawUren(); q.addEventListener("input", drawPick);
+    ov.querySelector("#fcats").addEventListener("click", e => { const b = e.target.closest("[data-fc]"); if (!b) return; st.cat = b.dataset.fc; drawPick(); });
+    ov.querySelector("#fotos").addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (b) { st.fotos.splice(+b.dataset.rm, 1); drawFotos(); } });
+    const addFiles = async e => {
+      const files = [...e.target.files].slice(0, MAXFOTO - st.fotos.length);
+      for (const f of files) { try { st.fotos.push({ id: nieuwId("f_"), data: await resize(f) }); } catch (_) { toast("Een foto kon niet geladen worden"); } }
+      e.target.value = ""; drawFotos();
+    };
+    ov.querySelector("#cam").addEventListener("change", addFiles); ov.querySelector("#gal").addEventListener("change", addFiles);
+    pick.addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.m === "__overig") { st.overig = true; st.machineId = null; vrij.hidden = false; vrij.focus(); } else { st.overig = false; st.machineId = b.dataset.m; vrij.hidden = true; }
+      drawPick(); drawUren();
+    });
+    ov.querySelectorAll(".prio button").forEach(b => b.onclick = () => { st.prio = b.dataset.p; ov.querySelectorAll(".prio button").forEach(o => o.setAttribute("aria-pressed", o === b)); });
+    ov.querySelector("#plaats").onclick = async () => {
+      const tekst = ov.querySelector("#tekst").value.trim(), door = ov.querySelector("#door").value.trim(), vr = vrij.value.trim(), u = urenF.hidden ? null : numOrNull(urenI.value);
+      const err = ov.querySelector("#err"); const fail = m => { err.textContent = m; err.hidden = false; };
+      if (!st.machineId && !(st.overig && vr)) return fail("Kies een machine, of vul bij Overig in wat het is.");
+      if (!tekst && !st.fotos.length) return fail("Zet er een foto of een korte omschrijving bij.");
+      if (!st.prio) return fail("Kies of het dringend is of kan wachten.");
+      if (!door) return fail("Vul je naam in.");
+      if (door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const ids = [];
+      for (const f of st.fotos) { try { await fotoDb.set(f.id, f.data); fotoMem.set(f.id, f.data); ids.push(f.id); } catch (e) { toast("Een foto kon niet bewaard worden"); } }
+      if (ids.length) store.set("wpbFotoWacht", store.get("wpbFotoWacht", []).concat(ids));
+      const x = { id: nieuwId("s_"), machineId: st.machineId, tekst: tekst || "(zie foto)", prio: st.prio, status: "open", door, fotos: ids, uren: u, t: Date.now() };
+      if (st.overig) x.machineVrij = vr;
+      wijzig("storing", x);
+      if (st.machineId) bumpUren(st.machineId, u);
+      closeSheet(); view = "meldingen"; tab = st.prio; syncTabs(); render(); toast("Storing gemeld");
+    };
+  });
+}
+
+function detail(id) {
+  const x = db.meldingen.find(m => m.id === id); if (!x) return;
+  const other = x.prio === "dringend" ? "tijd" : "dringend";
+  const actions = [];
+  if (x.status !== "klaar") actions.push(`<button class="btn done" data-s="klaar">Klaar</button>`);
+  else actions.push(`<button class="btn" data-s="open">Weer openzetten</button>`);
+  if (x.status !== "klaar") actions.push(`<button class="btn" data-prio="${other}">Naar ${other === "dringend" ? "Dringend" : "Als er tijd is"}</button>`);
+  actions.push(`<button class="btn warn" id="delM">Verwijderen</button>`);
+  const f = x.fotos || [];
+  openSheet(`${head(esc(mName(x)))}
+    ${f.length ? `<div class="gallery">${f.map(s => `<div class="gf" data-foto="${esc(s)}"><span class="ph">foto laden…</span></div>`).join("")}</div>` : ""}
+    <p class="grote">${esc(x.tekst)}</p>
+    <div class="kv">
+      <div><span>Status</span><span class="chip ${x.status === "klaar" ? "klaar" : "open"}">${STAT[x.status] || "Open"}</span></div>
+      <div><span>Hoe dringend</span><span class="chip ${x.prio === "dringend" ? "dringend" : "open"}">${x.prio === "dringend" ? "Dringend" : "Als er tijd is"}</span></div>
+      <div><span>Gemeld</span><span>${fmtDate(x.t)} door ${esc(x.door)}</span></div>
+      ${x.uren != null ? `<div><span>Urenstand</span><span>${nf(x.uren)} uur</span></div>` : ""}
+      ${x.tKlaar ? `<div><span>Klaar</span><span>${fmtDate(x.tKlaar)}${x.klaarDoor ? " door " + esc(x.klaarDoor) : ""}</span></div>` : ""}
+    </div>
+    <div class="actions">${actions.join("")}</div>
+    ${x.machineId ? `<button class="linkish" data-hist="${esc(x.machineId)}">Alles van deze machine</button>` : ""}`, ov => {
+    ov.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { closeSheet(); setStatus(id, b.dataset.s); });
+    ov.querySelectorAll("[data-prio]").forEach(b => b.onclick = () => { wijzig("storing", Object.assign({}, x, { prio: b.dataset.prio })); closeSheet(); render(); toast("Verplaatst"); });
+    const h = ov.querySelector("[data-hist]"); h && (h.onclick = () => machineDetail(h.dataset.hist));
+    armed(ov.querySelector("#delM"), "Zeker weten? Tik nog een keer", () => { verwijder("storing", id); closeSheet(); render(); toast("Storing verwijderd"); });
+  });
+}
+
+function machineDetail(mid) {
+  const m = mach(mid); if (!m) return;
+  const ms = db.meldingen.filter(x => x.machineId === mid);
+  const yr = new Date().getFullYear();
+  const dit = ms.filter(x => new Date(x.t).getFullYear() === yr).length;
+  const open = ms.filter(x => x.status !== "klaar").length;
+  const s = ohStatus(m), lo = lastOh(mid);
+  const tl = [...ms.map(x => ({ t: x.t, k: "m", x })), ...db.onderhoud.filter(o => o.machineId === mid).map(o => ({ t: o.t, k: "o", x: o }))].sort((a, b) => b.t - a.t);
+  const tlHTML = tl.length ? tl.map(e => e.k === "o"
+    ? `<div class="h"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div></div>`
+    : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
+    : '<p class="empty">Nog niks vastgelegd.</p>';
+  openSheet(`${head(esc(m.naam))}
+    <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}</p>
+    <div class="stats">
+      <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
+      <div class="stat"><b>${open}</b><span>nu open</span></div>
+      <div class="stat"><b>${dit}</b><span>gemeld dit jaar</span></div>
+    </div>
+    <div class="actions"><button class="btn primary" id="meldHier">+ Storing melden</button><button class="btn" id="mEdit">Bewerken</button></div>
+    <span class="lbl">Onderhoud</span>
+    <div class="kv">
+      <div><span>Status</span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></div>
+      ${s.lvl !== "none" ? `<div><span>Volgende beurt</span><span>${esc(s.txt)}</span></div>` : ""}
+      <div><span>Laatste beurt</span><span>${lo ? `${fmtDate(lo.t)}${lo.uren != null ? " · " + nf(lo.uren) + " u" : ""}` : "nog niet vastgelegd"}</span></div>
+      <div><span>Interval</span><span>${ivTxt(m.interval || {})}</span></div>
+    </div>
+    <div class="actions" style="margin-top:-6px">
+      <button class="btn done" id="ohDone">Onderhoud gedaan</button>
+      ${m.urenteller ? '<button class="btn" id="urenUpd">Urenstand bijwerken</button>' : ""}
+    </div>
+    <span class="lbl">Geschiedenis</span>
+    <div class="hist">${tlHTML}</div>`, ov => {
+    ov.querySelector("#meldHier").onclick = () => newMelding(mid);
+    ov.querySelector("#mEdit").onclick = () => machineForm(mid);
+    ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
+    ov.querySelector("#ohDone").onclick = () => ohForm(mid);
+    const u = ov.querySelector("#urenUpd"); u && (u.onclick = () => urenForm(mid));
+  });
+}
+
+function ohForm(mid) {
+  const m = mach(mid); const today = new Date().toISOString().slice(0, 10);
+  openSheet(`${head("Onderhoud gedaan")}
+    <p class="hint" style="margin-top:-8px">${esc(m.naam)}</p>
+    <div class="two">
+      <div class="field"><label for="od">Datum</label><input id="od" type="date" value="${today}" max="${today}"></div>
+      ${m.urenteller ? `<div class="field"><label for="ou">Urenstand</label><input id="ou" type="text" inputmode="numeric" value="${m.uren ?? ""}"></div>` : "<div></div>"}
+    </div>
+    <div class="field"><label for="ow">Wat is er gedaan?</label><textarea id="ow" placeholder="Bijv. 500-urenbeurt: olie, filters, vetten"></textarea></div>
+    <div class="field"><label for="odoor">Gedaan door</label><input id="odoor" type="text" value="${esc(me)}"></div>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="oOk">Opslaan</button>`, ov => {
+    ov.querySelector("#oOk").onclick = () => {
+      const d = ov.querySelector("#od").value, wat = ov.querySelector("#ow").value.trim(), door = ov.querySelector("#odoor").value.trim();
+      const u = m.urenteller ? numOrNull(ov.querySelector("#ou").value) : null;
+      const err = ov.querySelector("#err"); const fail = t => { err.textContent = t; err.hidden = false; };
+      if (!d) return fail("Kies een datum.");
+      if (m.urenteller && u == null) return fail("Vul de urenstand in, anders kan de volgende beurt niet berekend worden.");
+      if (!door) return fail("Vul in wie het gedaan heeft.");
+      if (door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const ts = Math.min(new Date(d + "T12:00").getTime(), Date.now());
+      wijzig("onderhoud", { id: nieuwId("o_"), machineId: mid, t: ts, uren: u, wat: wat || "Onderhoud", door });
+      bumpUren(mid, u); render(); machineDetail(mid); toast("Onderhoud vastgelegd");
+    };
+  });
+}
+
+function urenForm(mid) {
+  const m = mach(mid);
+  openSheet(`${head("Urenstand")}
+    <p class="hint" style="margin-top:-8px">${esc(m.naam)}${m.uren != null ? " · laatst bekend " + nf(m.uren) + " uur" : ""}</p>
+    <div class="field"><label for="uu">Huidige urenstand</label><input id="uu" type="text" inputmode="numeric" value="${m.uren ?? ""}"></div>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="uOk">Opslaan</button>`, ov => {
+    let gewaarschuwd = false;
+    ov.querySelector("#uOk").onclick = () => {
+      const u = numOrNull(ov.querySelector("#uu").value), err = ov.querySelector("#err");
+      if (u == null) { err.textContent = "Vul een getal in."; err.hidden = false; return; }
+      if (m.uren != null && u < m.uren && !gewaarschuwd) { gewaarschuwd = true; err.textContent = `Dat is lager dan de laatst bekende stand (${nf(m.uren)}). Klopt het? Tik nog een keer op Opslaan om toch te bewaren.`; err.hidden = false; return; }
+      wijzig("machine", Object.assign({}, m, { uren: u })); render(); machineDetail(mid); toast("Urenstand bijgewerkt");
+    };
+  });
+}
+
+// Machine toevoegen (mid leeg) of bewerken
+function machineForm(mid) {
+  const m = mid ? mach(mid) : null, iv = (m && m.interval) || {};
+  let cat = m ? catOf(m) : (mcat !== "Alles" ? mcat : null);
+  const ut0 = m ? !!m.urenteller : !!(cat && cat !== "Werktuigen" && cat !== "Overig");
+  openSheet(`${head(m ? "Machine bewerken" : "Machine toevoegen")}
+    <div class="field"><label for="mn">Naam</label><input id="mn" type="text" value="${esc(m ? m.naam : "")}" placeholder="Bijv. Valtra T175"></div>
+    <div class="field"><span class="lbl">Categorie</span><div class="cats wrap" id="mcat">${CATS.map(c => `<button type="button" data-c="${c}" aria-pressed="${cat === c}">${c}</button>`).join("")}</div></div>
+    <div class="field"><label for="mt">Soort <span>(optioneel)</span></label><input id="mt" type="text" value="${esc(m ? m.type || "" : "")}" placeholder="Bijv. rupskraan, maaier, kipper"></div>
+    <label class="check"><input id="mut" type="checkbox" ${ut0 ? "checked" : ""}> Heeft een urenteller</label>
+    <div class="two">
+      <div class="field" id="muF"><label for="mu">Urenstand nu</label><input id="mu" type="text" inputmode="numeric" value="${m && m.uren != null ? m.uren : ""}" placeholder="Optioneel"></div>
+      <div class="field" id="miuF"><label for="miu">Beurt elke … uur</label><input id="miu" type="text" inputmode="numeric" value="${iv.uren ?? ""}" placeholder="Bijv. 500"></div>
+    </div>
+    <div class="field"><label for="mim">Beurt elke … maanden</label><input id="mim" type="text" inputmode="numeric" value="${iv.maanden ?? ""}" placeholder="Bijv. 12"></div>
+    <p class="hint">Bij een interval in uren én maanden telt wat het eerst komt.</p>
+    <p class="err" id="err" hidden></p>
+    <button class="btn primary groot" id="mOk">${m ? "Opslaan" : "Toevoegen"}</button>
+    ${m ? '<button class="btn warn" id="delMach">Machine verwijderen</button>' : ""}`, ov => {
+    const ut = ov.querySelector("#mut");
+    const toonUren = () => { ov.querySelector("#muF").hidden = ov.querySelector("#miuF").hidden = !ut.checked; };
+    toonUren(); ut.addEventListener("change", toonUren);
+    ov.querySelector("#mcat").addEventListener("click", e => {
+      const b = e.target.closest("[data-c]"); if (!b) return; cat = b.dataset.c;
+      ov.querySelectorAll("#mcat button").forEach(o => o.setAttribute("aria-pressed", o === b));
+      if (!m) { ut.checked = cat !== "Werktuigen" && cat !== "Overig"; toonUren(); }
+    });
+    ov.querySelector("#mOk").onclick = () => {
+      const n = ov.querySelector("#mn").value.trim(), t = ov.querySelector("#mt").value.trim(), err = ov.querySelector("#err");
+      if (!n) { err.textContent = "Geef de machine een naam."; err.hidden = false; return; }
+      if (!cat) { err.textContent = "Kies een categorie."; err.hidden = false; return; }
+      if (db.machines.some(x => x.id !== mid && x.naam.toLowerCase() === n.toLowerCase())) { err.textContent = "Er is al een machine met die naam."; err.hidden = false; return; }
+      const nieuw = Object.assign({}, m || { id: nieuwId("m_") }, {
+        naam: n, type: t, cat, urenteller: ut.checked,
+        uren: ut.checked ? numOrNull(ov.querySelector("#mu").value) : null,
+        interval: { uren: ut.checked ? numOrNull(ov.querySelector("#miu").value) : null, maanden: numOrNull(ov.querySelector("#mim").value) }
+      });
+      wijzig("machine", nieuw); render();
+      if (m) { machineDetail(nieuw.id); toast("Opgeslagen"); } else { closeSheet(); toast("Machine toegevoegd"); }
+    };
+    const dm = ov.querySelector("#delMach");
+    dm && armed(dm, "Zeker? Storingen en onderhoud gaan ook weg", () => {
+      db.meldingen.filter(x => x.machineId === mid).forEach(x => verwijder("storing", x.id));
+      db.onderhoud.filter(x => x.machineId === mid).forEach(x => verwijder("onderhoud", x.id));
+      verwijder("machine", mid); closeSheet(); render(); toast("Machine verwijderd");
+    });
+  });
+}
+
+/* ---------- instellingen en groep ---------- */
+function installLink(metGroep) { return SITE + "installeren.html" + (metGroep && groep.code ? "?groep=" + encodeURIComponent(groep.code.trim()) : ""); }
+function kopieer(tekst, vak) {
+  const toon = () => { vak.hidden = false; vak.textContent = tekst; };
+  try { navigator.clipboard.writeText(tekst).then(() => { toast("Link gekopieerd"); toon(); }, toon); } catch (e) { toon(); }
+}
+function instellingen(daarna) {
+  openSheet(`${head("Instellingen")}
+    <div class="field"><label for="sNaam">Jouw naam</label><input id="sNaam" type="text" value="${esc(me)}" autocomplete="given-name" placeholder="Bijv. Henk"></div>
+    <span class="lbl">Groep</span>
+    <p class="hint">Met de groep ziet iedereen dezelfde storingen, machines en onderhoud. Zonder groep blijft alles op deze telefoon.</p>
+    <label class="check"><input id="gAan" type="checkbox" ${groep.aan ? "checked" : ""}> Meedoen met de groep</label>
+    <div class="field"><label for="gCode">Groepscode</label><input id="gCode" type="text" value="${esc(groep.code)}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    ${GROEP_URL_VAST ? "" : `<div class="field"><label for="gUrl">Web-app-URL <span>(van het Google-script, eindigt op /exec)</span></label><input id="gUrl" type="url" value="${esc(store.get("wpbGroepUrl", ""))}" autocomplete="off" spellcheck="false"></div>`}
+    <p class="err" id="err" hidden></p>
+    <div class="actions"><button class="btn primary groot" id="sOk">Opslaan</button>${groepAan() ? '<button class="btn" id="sNu">Nu bijwerken</button>' : ""}</div>
+    <span class="lbl">Doorsturen</span>
+    <div class="actions"><button class="btn" id="sLink">Kopieer installatielink</button>${groep.code ? '<button class="btn" id="sLinkG">Link met groep</button>' : ""}</div>
+    <p class="copybox" id="sLinkTxt" hidden></p>
+    <p class="hint">Versie ${VERSIE}</p>`, ov => {
+    ov.querySelector("#sOk").onclick = () => {
+      const naam = ov.querySelector("#sNaam").value.trim(), aan = ov.querySelector("#gAan").checked, code = ov.querySelector("#gCode").value.trim();
+      const urlI = ov.querySelector("#gUrl"), err = ov.querySelector("#err");
+      if (!naam) { err.textContent = "Vul je naam in."; err.hidden = false; return; }
+      if (aan && !code) { err.textContent = "Vul de groepscode in, of zet het vinkje uit."; err.hidden = false; return; }
+      if (urlI) { const u = urlI.value.trim(); if (aan && u && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)) { err.textContent = "De web-app-URL moet beginnen met https://script.google.com/ en eindigen op /exec."; err.hidden = false; return; } store.set("wpbGroepUrl", u); }
+      const codeAnders = code !== groep.code;
+      me = naam; store.set("wpbNaam", me); setWho();
+      groep = { code, aan }; store.set("wpbGroep", groep);
+      if (codeAnders) { sync.laatst = 0; sync.fout = ""; }
+      closeSheet(); toast("Opgeslagen"); statusTekst();
+      if (groepAan()) syncNu();
+      daarna && daarna();
+    };
+    const nu = ov.querySelector("#sNu"); nu && (nu.onclick = () => { syncNu(); toast("Bijwerken…"); });
+    const vak = ov.querySelector("#sLinkTxt");
+    ov.querySelector("#sLink").onclick = () => kopieer(installLink(false), vak);
+    const lg = ov.querySelector("#sLinkG"); lg && (lg.onclick = () => kopieer(installLink(true), vak));
+    if (!me) ov.querySelector("#sNaam").focus();
+  });
+}
+// Uitnodiging: installeren.html?groep=<code> zet hem klaar, of de app zelf geopend met ?groep=<code>
+function neemUitnodiging() {
+  let code = "";
+  try { const p = new URLSearchParams(location.search); code = p.get("groep") || ""; if (code) history.replaceState(null, "", location.pathname); } catch (e) {}
+  const u = store.get("wpbGroepUitnodiging", null);
+  if (!code && u && u.code) code = u.code;
+  store.del("wpbGroepUitnodiging");
+  if (!code) return false;
+  groep = { code: String(code).trim(), aan: true }; store.set("wpbGroep", groep);
+  sync.laatst = 0; statusTekst(); if (groepAan()) syncNu();
+  toast("Je doet mee met de groep");
+  return true;
+}
+
+/* ---------- starten ---------- */
+function syncTabs() { document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab)); }
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; tab = b.dataset.tab; syncTabs(); render(); });
+$("#mcats").addEventListener("click", e => { const b = e.target.closest("[data-cat]"); if (!b) return; mcat = b.dataset.cat; render(); window.scrollTo(0, 0); });
+$("#view").addEventListener("click", e => {
+  const tg = e.target.closest("[data-toggle]"); if (tg) { const k = tg.dataset.toggle; openGroups.has(k) ? openGroups.delete(k) : openGroups.add(k); render(); return; }
+  const a = e.target.closest("[data-act]"); if (a) { setStatus(a.dataset.id, a.dataset.act); return; }
+  const d = e.target.closest("[data-detail]"); if (d) { detail(d.dataset.detail); return; }
+  const m = e.target.closest("[data-mach]"); if (m) { machineDetail(m.dataset.mach); return; }
+  if (e.target.id === "addMach") machineForm(null);
+});
+$("#fab").onclick = () => newMelding();
+$("#navMeld").onclick = () => { view = "meldingen"; render(); window.scrollTo(0, 0); };
+$("#navMach").onclick = () => { view = "machines"; render(); window.scrollTo(0, 0); };
+$("#whoBtn").onclick = () => instellingen();
+$("#voet").textContent = "Werkplaatsbord · versie " + VERSIE;
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { if (neemUitnodiging() && !me) instellingen(); planSync(200); } });
+window.addEventListener("online", () => planSync(500));
+window.addEventListener("storage", e => { if (e.key === "wpbGroepUitnodiging" && e.newValue) { if (neemUitnodiging() && !me) instellingen(); } });
+setInterval(() => { if (document.visibilityState === "visible") planSync(0); }, 120000);
+
+setWho(); render(); statusTekst();
+neemUitnodiging();
+if (!me) instellingen();
+planSync(300);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
