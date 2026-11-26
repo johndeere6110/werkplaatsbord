@@ -279,7 +279,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 9; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 10; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1025,7 +1025,17 @@ function afdrukken(mid) {
   let html = "";
   if (!mid) {
     const vrij = db.meldingen.filter(x => !x.machineId).sort((a, b) => b.t - a.t);
+    // Zelfde lijst als "Onderhoud aan de beurt" in de app: eerst te laat, dan binnenkort
+    const due = ms.map(m => ({ m, s: ohStatus(m) })).filter(o => o.s.lvl === "late" || o.s.lvl === "soon").sort((a, b) => (a.s.lvl === "late" ? 0 : 1) - (b.s.lvl === "late" ? 0 : 1));
+    const dueHTML = due.length ? `<table><thead><tr><th>Machine</th><th>Status</th><th>Wanneer</th><th class="r">Uren nu</th><th>Laatste beurt</th></tr></thead><tbody>${due.map(({ m, s }) => {
+        const lo = lastOh(m.id);
+        return `<tr><td>${esc(m.naam)}</td><td class="nw">${s.lvl === "late" ? "<b>Te laat</b>" : "Binnenkort"}</td><td>${esc(s.txt)}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) + (lo.uren != null ? " · " + nf(lo.uren) + " u" : "") : ""}</td></tr>`;
+      }).join("")}</tbody></table>` : '<p class="pr-leeg">Er is niks aan de beurt.</p>';
+    const onb = ms.filter(m => ohStatus(m).lvl === "onb");
     html += `<section class="pr-pag"><h1>Alle machines</h1><p class="pr-sub">Overzicht onderhoud en storingen</p>
+      <h2>Onderhoud aan de beurt</h2>${dueHTML}
+      ${onb.length ? `<p class="pr-leeg" style="margin-top:4pt">Laatste beurt nog niet ingevuld: ${onb.map(m => esc(m.naam)).join(", ")}.</p>` : ""}
+      <h2>Alle machines</h2>
       <table><thead><tr><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
         const s = ohStatus(m), lo = lastOh(m.id), open = db.meldingen.filter(x => x.machineId === m.id && x.status !== "klaar").length;
         return `<tr><td>${esc(m.naam)}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
