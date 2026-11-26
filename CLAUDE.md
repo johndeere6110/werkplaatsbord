@@ -7,14 +7,16 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
   met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
   wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt). Verander bestaande
-  sleutels niet. Foto's (verkleind, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
+  sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
+  Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
-  uren, t, tKlaar, klaarDoor}; machine {id, naam, type, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
+  uren, t, tKlaar, klaarDoor, thumb}; machine {id, naam, type, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
   {id o_..., machineId, t, uren, wat, door}. De startmachines hebben vaste id's v1..v17. meta[id] = {s: soort, g:
   tijdstip laatste wijziging, weg: 1}. Elke wijziging gaat via wijzig(soort, obj) of verwijder(soort, id).
 - Groep: groep/apps-script.gs in een eigen Google Sheet (zie groep/HANDLEIDING.md), web-app-URL in GROEP_URL_VAST in
   index.html (zolang die leeg is staat er een veld Web-app-URL in Instellingen). Per record wint de nieuwste g;
-  weggehaald = rij met weg "verwijderd". Foto's in blad "fotos" in stukken van 45.000 tekens; ophalen met ?foto=<id>.
+  weggehaald = rij met weg "verwijderd". Foto's als bestand <id>.jpg in de Drive-map "Werkplaatsbord foto's" (id in scripteigenschap FOTOMAP_ID); versturen
+  als {foto: {id, data, omschrijving}}, ophalen met ?foto=<id> (data-URL terug).
   POST met Content-Type text/plain (geen preflight).
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.

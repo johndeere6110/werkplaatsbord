@@ -1,11 +1,13 @@
 # Groep instellen (Google Sheet)
 
 Met de groep ziet iedereen in de werkplaats dezelfde storingen, machines en onderhoud, met de foto's erbij.
-Alles komt in één Google Sheet; de app stuurt en haalt op via een klein script in die sheet.
+Alles komt in één Google Sheet, de foto's in een map in Google Drive. De app stuurt en haalt op via een klein script
+in die sheet. Gebruik een **apart Google-account** voor de groep: het script kan bij de Drive van dat account.
 Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de Perceelkaart en de Zaaihulp.
 
 ## 1. Sheet maken
-1. Log in bij Google (het mag hetzelfde account als voor de groep van de Perceelkaart).
+1. Log in bij Google met het aparte account voor de werkplaats (niet je eigen account). Zet bij dat account een
+   herstel-telefoonnummer en herstel-e-mail, en tweestapsverificatie.
 2. Ga naar [sheets.new](https://sheets.new). Geef de sheet een naam, bv. **Werkplaatsbord groep**.
 
 ## 2. Script erin zetten
@@ -21,7 +23,8 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
 2. Type (tandwiel): **Web-app**.
 3. Uitvoeren als: **Ik**. Wie heeft toegang: **Iedereen**.
 4. **Implementeren**. Google vraagt toestemming: kies je account → *Geavanceerd* → *Ga naar … (onveilig)* → *Toestaan*.
-   (Google waarschuwt omdat het een eigen script is; het script kan alleen bij deze ene sheet.)
+   (Google waarschuwt omdat het een eigen script is. Het vraagt om de sheet en om Google Drive: daar zet het script
+   de foto's in de map **Werkplaatsbord foto's**.)
 5. Kopieer de **URL van de web-app** (eindigt op `/exec`).
    - Stuur hem naar de ontwikkelaar: die zet hem vast in de app, daarna hoeft niemand er meer iets mee.
    - Wil je meteen testen: in de app, tandwiel rechtsboven → **Web-app-URL** plakken. Dat veld verdwijnt zodra de URL
@@ -38,8 +41,10 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
 - Haalt iemand iets weg, dan verdwijnt het bij iedereen.
 - De app werkt vanzelf bij als je hem opent of terughaalt van de achtergrond, elke 2 minuten zolang hij openstaat,
   en een paar seconden na een wijziging. Zonder bereik bewaart de telefoon het en stuurt hij het later.
-- Foto's worden verkleind (ongeveer 100 kB per foto) en staan in het blad **fotos**. Een telefoon haalt een foto pas
-  op als iemand hem bekijkt, en bewaart hem daarna zelf.
+- Foto's worden verkleind tot 1600 pixels (zo'n 300–500 kB, scherp genoeg voor een typeplaatje) en komen als losse
+  bestanden in de map **Werkplaatsbord foto's** in Drive (naam = foto-id, met in de beschrijving de machine en de
+  storing). Een telefoon haalt een grote foto pas op als iemand de storing opent, en bewaart hem daarna zelf.
+  In de lijst staat een mini-voorbeeld dat in de storing zelf zit. 15 GB is ruim voor tienduizenden foto's.
 
 ## Beheer
 - Blad **data**: één regel per storing, machine of onderhoudsbeurt. Kolom *omschrijving* is leesbaar, kolom *data*
@@ -51,8 +56,10 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
 - **Definitief opruimen:** een regel met `verwijderd` mag je helemaal weghalen (rechtsklik op het rijnummer →
   *Rij verwijderen*), maar pas als alle telefoons daarna een keer bijgewerkt hebben. Anders kan een telefoon die lang
   uit stond hem terugzetten.
-- **Foto's opruimen:** in de Apps Script-editor de functie `fotosOpruimen` kiezen en *Uitvoeren*. Dat haalt foto's
-  weg van storingen die verwijderd zijn. Afgevinkte storingen houden hun foto's.
+- **Foto's opruimen:** in de Apps Script-editor de functie `fotosOpruimen` kiezen en *Uitvoeren*. Dat zet foto's van
+  verwijderde storingen in de prullenbak van Drive. Afgevinkte storingen houden hun foto's.
+- **Zelf ook bij de sheet kunnen:** deel de sheet (knop **Delen** rechtsboven) met je eigen Google-account als
+  **Bewerker**. Dan kun je er altijd bij, ook zonder het wachtwoord van het groepsaccount.
 - **Script aangepast?** Implementeren → *Implementaties beheren* → potloodje → Versie: *Nieuwe versie* →
   Implementeren. Zo blijft de URL hetzelfde.
 - **Code veranderen:** pas `GROEPSCODE` aan bij de scripteigenschappen. Iedereen moet dan de nieuwe code invullen

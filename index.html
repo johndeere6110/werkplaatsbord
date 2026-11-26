@@ -189,7 +189,10 @@ textarea{min-height:84px;resize:vertical}
 .gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
 .gallery .gf{height:240px;flex:none;max-width:85%;scroll-snap-align:start;border-radius:12px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);font-size:.85rem;aspect-ratio:3/4}
 .gallery .gf:only-child{max-width:100%;width:100%;aspect-ratio:auto}
-.gallery img{height:100%;width:100%;object-fit:cover;display:block}
+.gallery img{height:100%;width:100%;object-fit:cover;display:block;cursor:zoom-in}
+.viewer{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.viewer img{max-width:100%;max-height:100%;object-fit:contain}
+.viewer button{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:12px;width:44px;height:44px;border-radius:999px;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:1.4rem}
 .kv{display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .kv div{display:flex;justify-content:space-between;gap:12px;font-size:.94rem;align-items:baseline}
 .kv div>span:first-child{color:var(--muted);flex:none}
@@ -242,11 +245,12 @@ textarea{min-height:84px;resize:vertical}
 
 <div id="sheetRoot"></div>
 <div class="toast" id="toast" hidden></div>
+<div class="viewer" id="viewer" hidden><img alt="Foto" id="viewerImg"><button type="button" id="viewerX" aria-label="Sluiten">×</button></div>
 
 <script>
 (function(){
 "use strict";
-const VERSIE = 2; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 3; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = ""; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -375,7 +379,7 @@ function fotoUrl(id) {
   const p = fotoDb.get(id).catch(() => null).then(async d => {
     if (d) return d;
     if (!groepAan() || !navigator.onLine) return null;
-    try { const r = await vraag(null, id); if (r && r.ok && r.data) { fotoDb.set(id, r.data).catch(() => {}); return r.data; } } catch (e) {}
+    try { const r = await vraag(null, id); if (r && r.ok && isBeeld(r.data)) { fotoDb.set(id, r.data).catch(() => {}); return r.data; } } catch (e) {}
     return null;
   }).then(d => { fotoBezig.delete(id); if (d) fotoMem.set(id, d); else fotoMis.set(id, Date.now()); return d; });
   fotoBezig.set(id, p); return p;
@@ -390,17 +394,20 @@ function vulFotos(root) {
     });
   });
 }
-function resize(file) {
+// Foto verkleinen: groot (1600 px, scherp genoeg voor een typeplaatje) en een mini-voorbeeld voor de lijst
+function maakFoto(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => { const img = new Image(); img.onload = () => {
-      const max = 1000, s = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL("image/jpeg", 0.65));
+      const schaal = (max, q) => { const s = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", q); };
+      res({ data: schaal(1600, 0.8), thumb: schaal(200, 0.7) });
     }; img.onerror = rej; img.src = r.result; };
     r.onerror = rej; r.readAsDataURL(file);
   });
 }
+const isBeeld = d => typeof d === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d);
 
 /* ---------- groep (Google Sheet) ---------- */
 const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null };
@@ -435,7 +442,11 @@ async function syncNu() {
     let wacht = store.get("wpbFotoWacht", []);
     for (const fid of [...wacht]) {
       const d = await fotoDb.get(fid).catch(() => null);
-      if (d) { const r = await vraag({ foto: { id: fid, data: d } }); if (!r || !r.ok) throw new Error(r && r.fout || "foto"); }
+      if (d) {
+        const st = db.meldingen.find(x => (x.fotos || []).includes(fid));
+        const r = await vraag({ foto: { id: fid, data: d, omschrijving: st ? [mName(st), st.tekst, st.door, fmtDate(st.t)].join(" · ") : "" } });
+        if (!r || !r.ok) throw new Error(r && r.fout || "foto");
+      }
       wacht = store.get("wpbFotoWacht", []).filter(x => x !== fid); store.set("wpbFotoWacht", wacht);
     }
     // 2. eigen wijzigingen versturen
@@ -505,7 +516,9 @@ function counts() {
 function rowHTML(x, showMachine) {
   const old = isOld(x), f = x.fotos || [];
   const more = f.length > 1 ? `<span class="more">+${f.length - 1}</span>` : "";
-  const thumb = f.length ? `<span class="thumb" data-foto="${esc(f[0])}"><span class="ph">…</span>${more}</span>` : '<span class="thumb">geen<br>foto</span>';
+  const thumb = !f.length ? '<span class="thumb">geen<br>foto</span>'
+    : isBeeld(x.thumb) ? `<span class="thumb"><img src="${esc(x.thumb)}" alt="">${more}</span>`
+    : `<span class="thumb" data-foto="${esc(f[0])}"><span class="ph">…</span>${more}</span>`;
   const act = x.status !== "klaar" ? `<button class="btn done" data-act="klaar" data-id="${esc(x.id)}">Klaar</button>` : "";
   const when = x.status === "klaar" ? "klaar, " + ago(x.tKlaar || x.t) : ago(x.t);
   return `<div class="row ${x.prio} ${x.status}">
@@ -597,7 +610,10 @@ function openSheet(html, onMount) {
   ov.querySelector(".sheet").scrollTop = 0;
 }
 function closeSheet() { $("#sheetRoot").innerHTML = ""; }
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#viewer").hidden) $("#viewer").hidden = true; else closeSheet(); } });
+// Tik op een foto: schermvullend (knijpen om in te zoomen); tik op × om terug te gaan
+$("#sheetRoot").addEventListener("click", e => { const img = e.target.closest(".gallery img"); if (!img) return; $("#viewerImg").src = img.src; $("#viewer").hidden = false; });
+$("#viewerX").onclick = () => { $("#viewer").hidden = true; $("#viewerImg").removeAttribute("src"); };
 const head = t => `<div class="sheet-h"><h2>${t}</h2><button class="x" data-close aria-label="Sluiten">×</button></div>`;
 // Twee keer tikken om te bevestigen (geen confirm()); armed(knop, tekst-bij-eerste-tik, actie)
 function armed(btn, tekst, doe) {
@@ -640,7 +656,7 @@ function newMelding(preMach) {
     <button class="btn primary groot" id="plaats">Storing melden</button>`, ov => {
     const pick = ov.querySelector("#mpick"), q = ov.querySelector("#msearch"), vrij = ov.querySelector("#mvrij"), urenF = ov.querySelector("#urenF"), urenI = ov.querySelector("#uren");
     const drawFotos = () => {
-      ov.querySelector("#fotos").innerHTML = st.fotos.map((f, i) => `<div class="fprev"><img src="${f.data}" alt="Foto ${i + 1}"><button type="button" data-rm="${i}" aria-label="Foto ${i + 1} weghalen">×</button></div>`).join("") +
+      ov.querySelector("#fotos").innerHTML = st.fotos.map((f, i) => `<div class="fprev"><img src="${f.thumb}" alt="Foto ${i + 1}"><button type="button" data-rm="${i}" aria-label="Foto ${i + 1} weghalen">×</button></div>`).join("") +
         (st.fotos.length < MAXFOTO ? `<label class="fbtn" for="cam"><span><strong>Camera</strong>foto maken</span></label><label class="fbtn" for="gal"><span><strong>Galerij</strong>foto's kiezen</span></label>` : "");
     };
     const drawUren = () => { const m = st.machineId && mach(st.machineId); urenF.hidden = !(m && m.urenteller); if (m && m.urenteller) urenI.placeholder = m.uren != null ? `Laatst bekend: ${nf(m.uren)}` : "Bijv. 4650"; };
@@ -656,7 +672,7 @@ function newMelding(preMach) {
     ov.querySelector("#fotos").addEventListener("click", e => { const b = e.target.closest("[data-rm]"); if (b) { st.fotos.splice(+b.dataset.rm, 1); drawFotos(); } });
     const addFiles = async e => {
       const files = [...e.target.files].slice(0, MAXFOTO - st.fotos.length);
-      for (const f of files) { try { st.fotos.push({ id: nieuwId("f_"), data: await resize(f) }); } catch (_) { toast("Een foto kon niet geladen worden"); } }
+      for (const f of files) { try { st.fotos.push(Object.assign({ id: nieuwId("f_") }, await maakFoto(f))); } catch (_) { toast("Een foto kon niet geladen worden"); } }
       e.target.value = ""; drawFotos();
     };
     ov.querySelector("#cam").addEventListener("change", addFiles); ov.querySelector("#gal").addEventListener("change", addFiles);
@@ -679,6 +695,7 @@ function newMelding(preMach) {
       if (ids.length) store.set("wpbFotoWacht", store.get("wpbFotoWacht", []).concat(ids));
       const x = { id: nieuwId("s_"), machineId: st.machineId, tekst: tekst || "(zie foto)", prio: st.prio, status: "open", door, fotos: ids, uren: u, t: Date.now() };
       if (st.overig) x.machineVrij = vr;
+      if (st.fotos.length && ids.includes(st.fotos[0].id)) x.thumb = st.fotos[0].thumb;
       wijzig("storing", x);
       if (st.machineId) bumpUren(st.machineId, u);
       closeSheet(); view = "meldingen"; tab = st.prio; syncTabs(); render(); toast("Storing gemeld");

@@ -1,7 +1,8 @@
 /**
  * Werkplaatsbord – storingen, machines en onderhoud delen met de groep via een Google Sheet.
  * Plak dit in de sheet via Uitbreidingen (of Extensies) > Apps Script (vervang wat er staat) en volg groep/HANDLEIDING.md.
- * Het script kan alleen bij deze ene sheet (zie @OnlyCurrentDoc), niet bij de rest van het account.
+ * Het script kan bij deze ene sheet (zie @OnlyCurrentDoc) en bij de Drive van dit account (voor de foto's).
+ * Gebruik daarom een apart Google-account voor de groep.
  *
  * Blad "data", één regel per storing, machine of onderhoudsbeurt:
  *   id | soort | omschrijving | van | gewijzigd | bijgewerkt | weg | data
@@ -9,8 +10,8 @@
  *   gewijzigd = tijdstip van de wijziging op de telefoon (getal); de nieuwste wijziging wint.
  * Moet iets bij iedereen weg? Zet in kolom "weg" iets (bv. "ja"): bij het volgende bijwerken is het bij iedereen weg.
  *
- * Blad "fotos": de foto's van de storingen, in stukken (een cel kan maar 50.000 tekens hebben).
- *   id | deel | data. Een telefoon haalt een foto pas op als iemand hem bekijkt.
+ * Foto's: als losse bestanden in de map "Werkplaatsbord foto's" in de Drive van dit account (naam = <id>.jpg).
+ *   Een telefoon haalt een foto pas op als iemand hem bekijkt. Daarom vraagt Google bij het publiceren ook om Drive.
  *
  * Blad "open storingen": overzicht om te lezen, wordt na elke keer bijwerken opnieuw gemaakt.
  * Eerste keer meteen zien: kies hierboven de functie overzichtNu en klik op Uitvoeren.
@@ -19,9 +20,7 @@
  */
 const BLAD = 'data';
 const KOP = ['id', 'soort', 'omschrijving', 'van', 'gewijzigd', 'bijgewerkt', 'weg', 'data'];
-const FOTOS = 'fotos';
-const FOTO_KOP = ['id', 'deel', 'data'];
-const STUK = 45000;
+const FOTOMAP = "Werkplaatsbord foto's";
 const SOORTEN = ['storing', 'machine', 'onderhoud'];
 
 function blad_(naam, kop) {
@@ -87,37 +86,45 @@ function doPost(e) {
   return antwoord_({ ok: true });
 }
 
-// ---------- Foto's ----------
-function fotoRijen_(sh, id) {
-  if (sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, 1).createTextFinder(id).matchEntireCell(true).findAll().map(function (c) { return c.getRow(); });
+// ---------- Foto's (Drive) ----------
+function fotoMap_() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty('FOTOMAP_ID');
+  if (id) { try { const m = DriveApp.getFolderById(id); if (!m.isTrashed()) return m; } catch (x) {} }
+  const it = DriveApp.getFoldersByName(FOTOMAP), m = it.hasNext() ? it.next() : DriveApp.createFolder(FOTOMAP);
+  props.setProperty('FOTOMAP_ID', m.getId());
+  return m;
+}
+function fotoBestand_(map, id) {
+  const it = map.getFilesByName(id + '.jpg');
+  while (it.hasNext()) { const f = it.next(); if (!f.isTrashed()) return f; }
+  return null;
 }
 function fotoLees_(id) {
-  const sh = blad_(FOTOS, FOTO_KOP), rijen = fotoRijen_(sh, id);
-  if (!rijen.length) return { ok: false, fout: 'geen' };
-  const delen = rijen.map(function (n) { const r = sh.getRange(n, 2, 1, 2).getValues()[0]; return { d: Number(r[0]) || 0, t: String(r[1]) }; });
-  delen.sort(function (a, b) { return a.d - b.d; });
-  return { ok: true, id: id, data: delen.map(function (x) { return x.t; }).join('') };
+  if (!/^f_[A-Za-z0-9_]+$/.test(id)) return { ok: false, fout: 'foto' };
+  const f = fotoBestand_(fotoMap_(), id);
+  if (!f) return { ok: false, fout: 'geen' };
+  const blob = f.getBlob();
+  return { ok: true, id: id, data: 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }
-function fotoSchrijf_(f) {
-  const id = String(f.id || '').slice(0, 60), data = String(f.data || '');
-  if (!/^f_[A-Za-z0-9_]+$/.test(id) || data.indexOf('data:image/') !== 0 || data.length > 2000000) return { ok: false, fout: 'foto' };
-  const sh = blad_(FOTOS, FOTO_KOP);
-  fotoRijen_(sh, id).sort(function (a, b) { return b - a; }).forEach(function (n) { sh.deleteRow(n); });
-  const rijen = [];
-  for (let i = 0, d = 0; i < data.length; i += STUK, d++) rijen.push([id, d, data.slice(i, i + STUK)]);
-  sh.getRange(sh.getLastRow() + 1, 1, rijen.length, 3).setValues(rijen);
+function fotoSchrijf_(foto) {
+  const id = String(foto.id || '').slice(0, 60), data = String(foto.data || '');
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(data);
+  if (!/^f_[A-Za-z0-9_]+$/.test(id) || !m || data.length > 6000000) return { ok: false, fout: 'foto' };
+  const map = fotoMap_(), oud = fotoBestand_(map, id);
+  if (oud) return { ok: true };                      // staat er al (bv. opnieuw verstuurd na een storing in het bereik)
+  const f = map.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], id + '.jpg'));
+  if (foto.omschrijving) f.setDescription(String(foto.omschrijving).slice(0, 500));
   return { ok: true };
 }
-// Met de hand starten vanuit de editor: foto's van weggehaalde of afgevinkte-en-verwijderde storingen opruimen
+// Met de hand starten vanuit de editor: foto's van verwijderde storingen naar de prullenbak van Drive
 function fotosOpruimen() {
   const v = blad_(BLAD, KOP).getDataRange().getValues(), nodig = {};
   for (let i = 1; i < v.length; i++) {
     if (String(v[i][1]) !== 'storing' || String(v[i][6]).trim()) continue;
-    try { (JSON.parse(String(v[i][7])).fotos || []).forEach(function (f) { nodig[f] = true; }); } catch (x) {}
+    try { (JSON.parse(String(v[i][7])).fotos || []).forEach(function (f) { nodig[f + '.jpg'] = true; }); } catch (x) {}
   }
-  const sh = blad_(FOTOS, FOTO_KOP), f = sh.getDataRange().getValues();
-  for (let i = f.length - 1; i >= 1; i--) if (f[i][0] && !nodig[String(f[i][0])]) sh.deleteRow(i + 1);
+  const it = fotoMap_().getFiles();
+  while (it.hasNext()) { const f = it.next(); if (!nodig[f.getName()]) f.setTrashed(true); }
 }
 
 // ---------- Overzicht: blad "open storingen" ----------

@@ -1,7 +1,7 @@
 # Werkplaatsbord
 
 Storingen melden in de werkplaats: foto, welke machine, wat er aan de hand is en of het dringend is. Per machine zie
-je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. Werkt op je telefoon.
+je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. Werkt op je telefoon. Tik op een foto om hem schermvullend te zien.
 
 **Openen:** https://johndeere6110.github.io/werkplaatsbord/
 **Installeren of doorsturen:** https://johndeere6110.github.io/werkplaatsbord/installeren.html
