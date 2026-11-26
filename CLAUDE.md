@@ -10,7 +10,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
-  uren, t, tKlaar, klaarDoor, thumb}; machine {id, naam, type, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
+  uren, t, tKlaar, klaarDoor, thumb}; machine {id, naam, type, kenteken, cat, urenteller, uren, interval {uren, maanden}}; onderhoud
   {id o_..., machineId, t, uren, wat, door}. De startmachines hebben vaste id's v1..v17. meta[id] = {s: soort, g:
   tijdstip laatste wijziging, weg: 1}. Elke wijziging gaat via wijzig(soort, obj) of verwijder(soort, id).
 - Groep: groep/apps-script.gs in een eigen Google Sheet (zie groep/HANDLEIDING.md), web-app-URL in GROEP_URL_VAST in

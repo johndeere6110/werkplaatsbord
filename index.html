@@ -283,7 +283,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 11; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 12; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -682,7 +682,7 @@ function newMelding(preMach) {
       <input class="vh" id="cam" type="file" accept="image/*" capture="environment">
       <input class="vh" id="gal" type="file" accept="image/*" multiple></div>
     <div class="field"><label for="msearch">Welke machine?</label>
-      <input id="msearch" type="search" placeholder="Zoek op naam of soort" autocomplete="off">
+      <input id="msearch" type="search" placeholder="Zoek op naam, soort of kenteken" autocomplete="off">
       <div class="cats" id="fcats"></div>
       <div class="mpick" id="mpick"></div>
       <input id="mvrij" type="text" placeholder="Wat is het dan?" hidden></div>
@@ -704,7 +704,7 @@ function newMelding(preMach) {
     const drawPick = () => {
       const s = q.value.trim().toLowerCase();
       ov.querySelector("#fcats").innerHTML = catChips(db.machines, st.cat, "data-fc");
-      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || (m.naam + " " + (m.type || "")).toLowerCase().includes(s)));
+      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || (m.naam + " " + (m.type || "") + " " + (m.kenteken || "") + " " + (m.kenteken || "").replace(/-/g, "")).toLowerCase().includes(s)));
       pick.innerHTML = list.map(m => `<button type="button" data-m="${esc(m.id)}" aria-pressed="${st.machineId === m.id}">${esc(m.naam)}<small>${esc(m.type || catOf(m))}</small></button>`).join("") +
         `<button type="button" data-m="__overig" aria-pressed="${st.overig}">Overig<small>staat er niet tussen</small></button>`;
     };
@@ -785,7 +785,7 @@ function machineDetail(mid) {
     : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
     : '<p class="empty">Nog niks vastgelegd.</p>';
   openSheet(`${head(esc(m.naam))}
-    <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}</p>
+    <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}</p>
     <div class="stats">
       <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
       <div class="stat"><b>${open}</b><span>nu open</span></div>
@@ -923,7 +923,10 @@ function machineForm(mid) {
   openSheet(`${head(m ? "Machine bewerken" : "Machine toevoegen")}
     <div class="field"><label for="mn">Naam</label><input id="mn" type="text" value="${esc(m ? m.naam : "")}" placeholder="Bijv. Valtra T175"></div>
     <div class="field"><span class="lbl">Categorie</span><div class="cats wrap" id="mcat">${CATS.map(c => `<button type="button" data-c="${c}" aria-pressed="${cat === c}">${c}</button>`).join("")}</div></div>
-    <div class="field"><label for="mt">Soort <span>(optioneel)</span></label><input id="mt" type="text" value="${esc(m ? m.type || "" : "")}" placeholder="Bijv. rupskraan, maaier, kipper"></div>
+    <div class="two">
+      <div class="field"><label for="mt">Soort <span>(optioneel)</span></label><input id="mt" type="text" value="${esc(m ? m.type || "" : "")}" placeholder="Bijv. rupskraan, kipper"></div>
+      <div class="field"><label for="mk">Kenteken <span>(optioneel)</span></label><input id="mk" type="text" value="${esc(m ? m.kenteken || "" : "")}" placeholder="Bijv. WF-123-K" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+    </div>
     <label class="check"><input id="mut" type="checkbox" ${ut0 ? "checked" : ""}> Heeft een urenteller</label>
     <div class="two">
       <div class="field" id="muF"><label for="mu">Urenstand nu</label><input id="mu" type="text" inputmode="numeric" value="${m && m.uren != null ? m.uren : ""}" placeholder="Optioneel"></div>
@@ -948,7 +951,7 @@ function machineForm(mid) {
       if (!cat) { err.textContent = "Kies een categorie."; err.hidden = false; return; }
       if (db.machines.some(x => x.id !== mid && x.naam.toLowerCase() === n.toLowerCase())) { err.textContent = "Er is al een machine met die naam."; err.hidden = false; return; }
       const nieuw = Object.assign({}, m || { id: nieuwId("m_") }, {
-        naam: n, type: t, cat, urenteller: ut.checked,
+        naam: n, type: t, kenteken: ov.querySelector("#mk").value.trim().toUpperCase().replace(/\s+/g, "-"), cat, urenteller: ut.checked,
         uren: ut.checked ? numOrNull(ov.querySelector("#mu").value) : null,
         interval: { uren: ut.checked ? numOrNull(ov.querySelector("#miu").value) : null, maanden: numOrNull(ov.querySelector("#mim").value) }
       });
@@ -973,9 +976,9 @@ const csvCel = v => {
   return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 };
 function csvRegels(mid) {
-  const kop = ["Machine", "Categorie", "Soort", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
+  const kop = ["Machine", "Categorie", "Soort", "Kenteken", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
   const rij = [];
-  const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.naam, catOf(m), m.type || ""] : [mName(x), "Overig", ""]; };
+  const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.naam, catOf(m), m.type || "", m.kenteken || ""] : [mName(x), "Overig", "", ""]; };
   db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: mInfo(o)[0], t: o.t, c: [...mInfo(o), csvDatum(o.t), "Onderhoud", o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
   db.meldingen.filter(x => !mid || x.machineId === mid).forEach(x => {
     const klaar = x.status === "klaar";
@@ -1014,6 +1017,7 @@ function prMachine(m, nu) {
   }).join("")}</tbody></table>` : '<p class="pr-leeg">Geen storingen gemeld.</p>';
   return `<section class="pr-pag"><h1>${esc(m.naam)}</h1><p class="pr-sub">${esc([m.type, catOf(m)].filter(Boolean).join(" · "))}</p>
     <dl class="pr-kv">
+      ${m.kenteken ? `<dt>Kenteken</dt><dd>${esc(m.kenteken)}</dd>` : ""}
       ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur" : "onbekend"}</dd>` : ""}
       <dt>Interval</dt><dd>${esc(ivTxt(m.interval || {}))}</dd>
       <dt>Laatste beurt</dt><dd>${lo ? csvDatum(lo.t) + (lo.uren != null ? " bij " + nf(lo.uren) + " uur" : "") : "nog niet vastgelegd"}</dd>
@@ -1042,7 +1046,7 @@ function afdrukken(mid) {
       <h2>Alle machines</h2>
       <table><thead><tr><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
         const s = ohStatus(m), lo = lastOh(m.id), open = db.meldingen.filter(x => x.machineId === m.id && x.status !== "klaar").length;
-        return `<tr><td>${esc(m.naam)}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
+        return `<tr><td>${esc(m.naam)}${m.kenteken ? ` <span class="pr-k">${esc(m.kenteken)}</span>` : ""}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
       }).join("")}</tbody></table>
       ${vrij.length ? `<h2>Overig (niet in de lijst)</h2><table><thead><tr><th>Gemeld</th><th>Wat</th><th>Storing</th><th>Status</th></tr></thead><tbody>${vrij.map(x => `<tr><td class="nw">${csvDatum(x.t)}</td><td>${esc(mName(x))}</td><td>${esc(x.tekst)}</td><td class="nw">${x.status === "klaar" ? "Opgelost" + (x.tKlaar ? " " + csvDatum(x.tKlaar) : "") : "<b>Nog open</b>"}</td></tr>`).join("")}</tbody></table>` : ""}
       <p class="pr-voet">Werkplaatsbord · momentopname van ${nu}. Hierna een pagina per machine waar onderhoud of storingen bij staan.</p></section>`;
