@@ -25,6 +25,9 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   urenstand toen) en het interval in één venster. Met **Opslaan, volgende** loop je alle machines achter elkaar door,
   **Overslaan** slaat er een over. Zolang de laatste beurt niet is ingevuld staat er "Laatste beurt?" (niet
   "Binnenkort").
+- **Exporteren naar Excel** (onderaan bij een machine) of **Alles naar Excel** (onderaan in Machines): een csv met
+  alle onderhoud en storingen, met of een storing op dat moment opgelost was of nog open (en wanneer en door wie).
+  Op de pc komt hij in Downloads, op de telefoon via Delen (mail, WhatsApp, Drive). Het is een momentopname.
 
 ## Groep
 Zonder groep blijft alles op je eigen telefoon. Met de groep ziet iedereen hetzelfde, via een Google Sheet met een

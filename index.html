@@ -254,7 +254,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 7; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 8; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -592,7 +592,7 @@ function renderMachines() {
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
     : `<h2 class="section-h">${mcat} (${ms.length})</h2><div class="mgrid">${ms.map(tile).join("")}</div>`;
   $("#view").innerHTML = `<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
-   <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button></div>`;
+   <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button><button class="btn" id="csvAlles" type="button">Alles naar Excel</button></div>`;
 }
 
 function render() {
@@ -776,9 +776,11 @@ function machineDetail(mid) {
       ${m.urenteller ? '<button class="btn" id="urenUpd">Urenstand bijwerken</button>' : ""}
     </div>
     <span class="lbl">Geschiedenis</span>
-    <div class="hist">${tlHTML}</div>`, ov => {
+    <div class="hist">${tlHTML}</div>
+    <button class="linkish" id="mCsv">Exporteren naar Excel (onderhoud en storingen)</button>`, ov => {
     ov.querySelector("#meldHier").onclick = () => newMelding(mid);
     ov.querySelector("#mEdit").onclick = () => machineForm(mid);
+    ov.querySelector("#mCsv").onclick = () => exporteer(mid);
     ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
     ov.querySelector("#ohDone").onclick = () => ohForm(mid);
     const lb = ov.querySelector("#lbIn"); lb && (lb.onclick = () => instelForm([mid], 0));
@@ -931,6 +933,41 @@ function machineForm(mid) {
   });
 }
 
+/* ---------- exporteren naar Excel (csv) ---------- */
+// Momentopname: status zoals hij nu is. Puntkomma als scheiding en een BOM, dan opent Nederlandse Excel hem meteen goed.
+const csvDatum = ts => { const d = new Date(ts); return String(d.getDate()).padStart(2, "0") + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + d.getFullYear(); };
+const csvCel = v => {
+  let t = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(t) && !/^-?\d+$/.test(t)) t = "'" + t; // geen formules uit vrije tekst
+  return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+};
+function csvRegels(mid) {
+  const kop = ["Machine", "Categorie", "Soort", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
+  const rij = [];
+  const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.naam, catOf(m), m.type || ""] : [mName(x), "Overig", ""]; };
+  db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: mInfo(o)[0], t: o.t, c: [...mInfo(o), csvDatum(o.t), "Onderhoud", o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
+  db.meldingen.filter(x => !mid || x.machineId === mid).forEach(x => {
+    const klaar = x.status === "klaar";
+    rij.push({ n: mInfo(x)[0], t: x.t, c: [...mInfo(x), csvDatum(x.t), "Storing", x.tekst, x.uren ?? "", x.door, klaar ? "Opgelost" : "Nog open", x.prio === "dringend" ? "Dringend" : "Als er tijd is", klaar && x.tKlaar ? csvDatum(x.tKlaar) : "", klaar ? x.klaarDoor || "" : ""] });
+  });
+  rij.sort((a, b) => a.n.localeCompare(b.n, "nl", { numeric: true }) || a.t - b.t);
+  return [kop, ...rij.map(r => r.c)].map(r => r.map(csvCel).join(";")).join("\r\n") + "\r\n";
+}
+async function exporteer(mid) {
+  const m = mid ? mach(mid) : null, vandaag = new Date().toISOString().slice(0, 10);
+  const naam = "werkplaatsbord-" + (m ? m.naam.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "alle-machines") + "-" + vandaag + ".csv";
+  const blob = new Blob(["\ufeff" + csvRegels(mid)], { type: "text/csv;charset=utf-8" });
+  // Telefoon: via Delen (mail, WhatsApp, Drive). Pc: gewoon downloaden.
+  const tel = /Android|iPhone|iPad|iPod/.test(navigator.userAgent || "");
+  if (tel && navigator.canShare && typeof File === "function") {
+    const f = new File([blob], naam, { type: "text/csv" });
+    if (navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f], title: naam }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = naam;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast("Opgeslagen als " + naam);
+}
+
 /* ---------- instellingen en groep ---------- */
 function installLink(metGroep) { return SITE + "installeren.html" + (metGroep && groep.code ? "?groep=" + encodeURIComponent(groep.code.trim()) : ""); }
 function kopieer(tekst, vak) {
@@ -997,6 +1034,7 @@ $("#view").addEventListener("click", e => {
   const m = e.target.closest("[data-mach]"); if (m) { machineDetail(m.dataset.mach); return; }
   if (e.target.closest("[data-instel]")) { if (instelLijst.length) instelForm(instelLijst.slice(), 0); return; }
   if (e.target.id === "addMach") machineForm(null);
+  if (e.target.id === "csvAlles") exporteer(null);
 });
 $("#fab").onclick = () => newMelding();
 $("#navMeld").onclick = () => { view = "meldingen"; render(); window.scrollTo(0, 0); };
