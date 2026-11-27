@@ -288,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 28; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 29; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1212,6 +1212,7 @@ function machineDetail(mid) {
     : '<p class="empty">Nog niks vastgelegd.</p>';
   openSheet(`${head(nrNaam(m))}
     <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}${m.model || m.bouwjaar ? "<br>" + esc([m.model, m.bouwjaar ? "bouwjaar " + m.bouwjaar : ""].filter(Boolean).join(" · ")) : ""}${m.chassis ? `<br>chassisnr. <span style="user-select:all">${esc(m.chassis)}</span>` : ""}</p>
+    ${m.info ? `<div class="kv"><div><span>Info</span><span style="white-space:pre-wrap;text-align:left">${esc(m.info)}</span></div></div>` : ""}
     <div class="stats">
       <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
       <div class="stat"><b>${open}</b><span>nu open</span></div>
@@ -1366,6 +1367,7 @@ function machineForm(mid) {
     </div>
     <div class="field"><label for="mmt">Merk en type <span>(optioneel)</span></label><input id="mmt" type="text" value="${esc(m ? m.model || "" : "")}" placeholder="Bijv. Valtra T175" autocomplete="off"></div>
     <div class="field"><label for="mch">Chassisnummer <span>(optioneel, staat op het typeplaatje)</span></label><input id="mch" type="text" value="${esc(m ? m.chassis || "" : "")}" placeholder="Bijv. YK5T174D0MS043017" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label for="minf">Info <span>(optioneel)</span></label><textarea id="minf" placeholder="Bijv. gechipt naar T234, bijzonderheden, bandenmaat">${esc(m ? m.info || "" : "")}</textarea></div>
     <div class="field"><span class="lbl">Categorie</span><div class="cats wrap" id="mcat">${CATS.map(c => `<button type="button" data-c="${c}" aria-pressed="${cat === c}">${c}</button>`).join("")}</div></div>
     <div class="two">
       <div class="field"><label for="mt">Soort <span>(optioneel)</span></label><input id="mt" type="text" value="${esc(m ? m.type || "" : "")}" placeholder="Bijv. rupskraan, kipper"></div>
@@ -1397,7 +1399,7 @@ function machineForm(mid) {
       if (nr && db.machines.some(x => x.id !== mid && x.nr === nr)) { err.textContent = "Dat machinenummer is al in gebruik."; err.hidden = false; return; }
       if (db.machines.some(x => x.id !== mid && x.naam.toLowerCase() === n.toLowerCase() && (x.nr || "") === nr)) { err.textContent = "Er is al een machine met die naam" + (nr ? " en dat nummer" : "") + ". Geef hem een machinenummer of een andere naam."; err.hidden = false; return; }
       const nieuw = Object.assign({}, m || { id: nieuwId("m_") }, {
-        naam: n, type: t, nr, bouwjaar: ov.querySelector("#mbj").value.trim(), model: ov.querySelector("#mmt").value.trim(), chassis: ov.querySelector("#mch").value.toUpperCase().replace(/\s+/g, ""), kenteken: ov.querySelector("#mk").value.trim().toUpperCase().replace(/\s+/g, "-"), cat, urenteller: ut.checked,
+        naam: n, type: t, nr, bouwjaar: ov.querySelector("#mbj").value.trim(), model: ov.querySelector("#mmt").value.trim(), chassis: ov.querySelector("#mch").value.toUpperCase().replace(/\s+/g, ""), info: ov.querySelector("#minf").value.trim(), kenteken: ov.querySelector("#mk").value.trim().toUpperCase().replace(/\s+/g, "-"), cat, urenteller: ut.checked,
         uren: ut.checked ? numOrNull(ov.querySelector("#mu").value) : null,
         interval: { uren: ut.checked ? numOrNull(ov.querySelector("#miu").value) : null, maanden: numOrNull(ov.querySelector("#mim").value) }
       });
@@ -1670,6 +1672,7 @@ function prMachine(m, nu) {
       ${m.kenteken ? `<dt>Kenteken</dt><dd>${esc(m.kenteken)}</dd>` : ""}
       ${m.bouwjaar ? `<dt>Bouwjaar</dt><dd>${esc(m.bouwjaar)}</dd>` : ""}
       ${m.chassis ? `<dt>Chassisnummer</dt><dd>${esc(m.chassis)}</dd>` : ""}
+      ${m.info ? `<dt>Info</dt><dd style="white-space:pre-wrap">${esc(m.info)}</dd>` : ""}
       ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur" : "onbekend"}</dd>` : ""}
       <dt>Interval</dt><dd>${esc(ivTxt(m.interval || {}))}</dd>
       <dt>Laatste beurt</dt><dd>${lo ? csvDatum(lo.t) + (lo.uren != null ? " bij " + nf(lo.uren) + " uur" : "") : "nog niet vastgelegd"}</dd>

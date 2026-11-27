@@ -25,7 +25,7 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   onderhoud door elkaar; tik een storing aan om hem te openen).
 - **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Een beurt in de geschiedenis aantikken = bewerken of verwijderen. Met een interval (elke … uur en/of elke … maanden, wat
   het eerst komt) rekent de app uit wanneer de volgende beurt is; bovenaan staat **Onderhoud aan de beurt**.
-- **Bewerken**: naam, machinenummer, bouwjaar, merk en type, chassisnummer, categorie, soort, kenteken, urenteller, interval, of de machine verwijderen.
+- **Bewerken**: naam, machinenummer, bouwjaar, merk en type, chassisnummer, info, categorie, soort, kenteken, urenteller, interval, of de machine verwijderen.
 - **Laatste beurt invullen** (bovenaan in Machines, of bij een machine): urenstand nu, de laatste beurt (datum,
   urenstand toen) en het interval in één venster. Met **Opslaan, volgende** loop je alle machines achter elkaar door,
   **Overslaan** slaat er een over. Zolang de laatste beurt niet is ingevuld staat er "Laatste beurt?" (niet
