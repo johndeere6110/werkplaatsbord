@@ -287,7 +287,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 23; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 24; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1523,7 +1523,7 @@ function gekeurdForm(kid, hi) {
       <div class="field"><label for="gt">${h0 ? "Geldig tot" : "Nu geldig tot"}</label><input id="gt" type="date" value="${h0 ? isoDag(h0.tot) : voorstel(vandaag)}"></div>
     </div>
     <div class="field"><label for="go">Opmerking <span>(optioneel)</span></label><input id="go" type="text" value="${esc(h0 ? h0.opm || "" : "")}" placeholder="Bijv. goedgekeurd, ketting vervangen"></div>
-    <div class="field"><label for="gdoor">Door</label><input id="gdoor" type="text" value="${esc(h0 ? h0.door : me)}"></div>
+    <div class="field"><label for="gdoor">Gekeurd door <span>(keuringsbedrijf, of wie het geregeld heeft)</span></label><input id="gdoor" type="text" value="${esc(h0 ? h0.door : "")}" placeholder="Bijv. naam keuringsbedrijf"></div>
     <div class="field"><span class="lbl">Keuringsrapport <span>(PDF of foto, optioneel)</span></span>
       <div class="actions" id="gb" style="margin-top:0"></div>
       <input class="vh" id="gf" type="file" accept="application/pdf,image/*" multiple></div>
@@ -1557,8 +1557,7 @@ function gekeurdForm(kid, hi) {
       if (!t) return fail("Kies de datum van de keuring.");
       if (!tot) return fail("Vul in tot wanneer hij geldig is.");
       if (tot <= t) return fail("Geldig tot moet na de keuringsdatum liggen.");
-      if (!door) return fail("Vul in wie het gedaan of geregeld heeft.");
-      if (!h0 && door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      if (!door) return fail("Vul in wie hem gekeurd heeft (bedrijf) of wie het geregeld heeft.");
       const opgeslagen = [];
       for (const b of bestanden) if (nieuw[b.id]) { try { await fotoDb.set(b.id, nieuw[b.id]); opgeslagen.push(b.id); } catch (x) { return fail("Het rapport kon niet bewaard worden op dit apparaat (geheugen vol?)."); } }
       if (opgeslagen.length) store.set("wpbFotoWacht", store.get("wpbFotoWacht", []).concat(opgeslagen));
