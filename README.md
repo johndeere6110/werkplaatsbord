@@ -15,16 +15,19 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   verplaatsen naar het andere tabblad of **Verwijderen** (twee keer tikken).
 
 ## Machines
-- Tabjes per categorie: Trekkers, Kranen, Shovels, Werktuigen, Overig.
+- De machinelijst van de werkplaats (247 machines, met machinenummer, kenteken, merk/type en bouwjaar) staat erin.
+  Machines die er al in stonden hielden hun naam, storingen en beurten.
+- Tabjes per categorie: Trekkers, Kranen, Shovels, Auto's, Wagens, Werktuigen, Aanbouwdelen, Winterdienst, Klein
+  materieel, Overig. Binnen een categorie op machinenummer. Zoeken kan ook op nummer en kenteken.
 - Per machine: urenstand, open storingen, hoe vaak gemeld dit jaar, onderhoud en de geschiedenis (storingen en
   onderhoud door elkaar; tik een storing aan om hem te openen).
 - **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Met een interval (elke … uur en/of elke … maanden, wat
   het eerst komt) rekent de app uit wanneer de volgende beurt is; bovenaan staat **Onderhoud aan de beurt**.
-- **Bewerken**: naam, categorie, soort, kenteken, urenteller, interval, of de machine verwijderen.
+- **Bewerken**: naam, machinenummer, bouwjaar, merk en type, categorie, soort, kenteken, urenteller, interval, of de machine verwijderen.
 - **Laatste beurt invullen** (bovenaan in Machines, of bij een machine): urenstand nu, de laatste beurt (datum,
   urenstand toen) en het interval in één venster. Met **Opslaan, volgende** loop je alle machines achter elkaar door,
   **Overslaan** slaat er een over. Zolang de laatste beurt niet is ingevuld staat er "Laatste beurt?" (niet
-  "Binnenkort").
+  "Binnenkort"). Alleen machines met een urenteller of een interval komen in dat rijtje.
 - **Exporteren naar Excel** (onderaan bij een machine) of **Alles naar Excel** (onderaan in Machines): een csv met
   alle onderhoud en storingen, met of een storing op dat moment opgelost was of nog open (en wanneer en door wie).
   Op de pc komt hij in Downloads, op de telefoon via Delen (mail, WhatsApp, Drive). Het is een momentopname.

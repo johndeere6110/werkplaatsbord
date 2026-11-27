@@ -74,26 +74,33 @@ function doPost(e) {
     const dringend = [];
     const sh = blad_(BLAD, KOP), v = sh.getDataRange().getValues(), waar = {};
     for (let i = 1; i < v.length; i++) if (v[i][0]) waar[String(v[i][0])] = i + 1;
+    // Bestaande regels meteen bijwerken; nieuwe regels verzamelen en in één keer onderaan zetten (veel sneller dan appendRow)
+    const nieuw = [], inNieuw = {};
+    const zet = function (n, id, rij) {
+      if (n) { sh.getRange(n, 1, 1, KOP.length).setValues([rij]); v[n - 1] = rij; }
+      else if (inNieuw[id] != null) nieuw[inNieuw[id]] = rij;
+      else { inNieuw[id] = nieuw.length; nieuw.push(rij); }
+    };
     (Array.isArray(b.rijen) ? b.rijen : []).slice(0, 500).forEach(function (r) {
       if (!r || !r.id || SOORTEN.indexOf(String(r.soort)) < 0) return;
       const id = String(r.id).slice(0, 100), n = waar[id];
-      const oudG = n ? Number(sh.getRange(n, 5).getValue()) || 0 : 0;
-      const oudWeg = n ? String(sh.getRange(n, 7).getValue()).trim() : '';
+      const oud = n ? v[n - 1] : (inNieuw[id] != null ? nieuw[inNieuw[id]] : null);
+      const oudG = oud ? Number(oud[4]) || 0 : 0;
+      const oudWeg = oud ? String(oud[6]).trim() : '';
       const g = Number(r.gewijzigd) || Date.now();
-      if (n && g < oudG) return;                          // er staat al iets nieuwers
+      if (oud && g < oudG) return;                        // er staat al iets nieuwers
       const d = r.data || {};
-      if (!n && !r.weg && r.soort === 'storing' && d.prio === 'dringend' && d.status !== 'klaar' && Number(d.t) > Date.now() - DAG) dringend.push(d);
+      if (!oud && !r.weg && r.soort === 'storing' && d.prio === 'dringend' && d.status !== 'klaar' && Number(d.t) > Date.now() - DAG) dringend.push(d);
       if (oudWeg && oudWeg !== 'verwijderd') return;      // door jou weggehaald in de sheet: blijft weg
       if (r.weg) {
-        if (n) sh.getRange(n, 5, 1, 3).setValues([[g, new Date(), 'verwijderd']]);
-        else { sh.appendRow([id, String(r.soort), '', String(r.van || '').slice(0, 40), g, new Date(), 'verwijderd', '']); waar[id] = sh.getLastRow(); }
+        zet(n, id, oud ? [oud[0], oud[1], oud[2], oud[3], g, new Date(), 'verwijderd', oud[7]]
+          : [id, String(r.soort), '', String(r.van || '').slice(0, 40), g, new Date(), 'verwijderd', '']);
         return;
       }
-      const rij = [id, String(r.soort), String(r.omschrijving || '').slice(0, 300), String(r.van || '').slice(0, 40),
-        g, new Date(), '', JSON.stringify(r.data || {}).slice(0, 49000)];
-      if (n) sh.getRange(n, 1, 1, KOP.length).setValues([rij]);
-      else { sh.appendRow(rij); waar[id] = sh.getLastRow(); }
+      zet(n, id, [id, String(r.soort), String(r.omschrijving || '').slice(0, 300), String(r.van || '').slice(0, 40),
+        g, new Date(), '', JSON.stringify(r.data || {}).slice(0, 49000)]);
     });
+    if (nieuw.length) sh.getRange(sh.getLastRow() + 1, 1, nieuw.length, KOP.length).setValues(nieuw);
     overzicht_();
     if (dringend.length) { try { meldDringend_(dringend, String(b.apparaat || ''), v); } catch (x) { /* melding mag het bijwerken nooit tegenhouden */ } }
   } finally { lock.releaseLock(); }

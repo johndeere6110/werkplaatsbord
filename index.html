@@ -285,7 +285,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 16; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 17; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -313,10 +313,13 @@ const fotoDb = (() => {
 })();
 
 const LIJST = { machine: "machines", storing: "meldingen", onderhoud: "onderhoud", keuring: "keuringen" };
-const CATS = ["Trekkers", "Kranen", "Shovels", "Werktuigen", "Overig"];
+const CATS = ["Trekkers", "Kranen", "Shovels", "Auto's", "Wagens", "Werktuigen", "Aanbouwdelen", "Winterdienst", "Klein materieel", "Overig"];
+const UREN_CATS = ["Trekkers", "Kranen", "Shovels"]; // nieuwe machine in deze categorie: standaard met urenteller
+// Volgorde binnen een categorie: op machinenummer, daarna op naam
+const opNr = (a, b) => (a.nr || "~").localeCompare(b.nr || "~", "nl", { numeric: true }) || a.naam.localeCompare(b.naam, "nl", { numeric: true });
 
 function startMachines() {
-  const M = (id, naam, type, cat) => ({ id, naam, type, cat, urenteller: cat !== "Werktuigen" && cat !== "Overig", uren: null, interval: {} });
+  const M = (id, naam, type, cat) => ({ id, naam, type, cat, urenteller: UREN_CATS.includes(cat), uren: null, interval: {} });
   return [
     M("v1", "Volvo L60E", "Shovel", "Shovels"), M("v2", "Volvo L60F", "Shovel", "Shovels"),
     M("v3", "Volvo mobiele kraan (oud)", "Mobiele kraan", "Kranen"), M("v4", "Volvo mobiele kraan (Dennis)", "Mobiele kraan", "Kranen"),
@@ -365,6 +368,300 @@ const groepAan = () => !!(groep.aan && groep.code && groepUrl());
 const apparaatId = (() => { let a = store.get("wpbApparaat", ""); if (!/^a_[A-Za-z0-9]+$/.test(a)) { a = "a_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); store.set("wpbApparaat", a); } return a; })();
 let push = store.get("wpbPush", { aan: false, dringend: true, keuring: true });
 
+const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categorie (index in CATS), urenteller]
+  ["0100", "Hakenfrees Baselier (3,0m)", "", "Hakenfrees", "Baselier (3,0m)", "", 5, 0],
+  ["0101", "Spitmachine Selevatici", "", "Spitmachine", "Selevatici", "", 5, 0],
+  ["0102", "Greppelfrees Maletti", "", "Greppelfrees", "Maletti", "", 5, 0],
+  ["0103", "Messenfrees Kuhn el 142", "", "Messenfrees", "Kuhn el 142", "", 5, 0],
+  ["0104", "Messenfrees Kuhn el 100", "", "Messenfrees", "Kuhn el 100", "", 5, 0],
+  ["0105", "Kopeg Kuhn HRB 303 D", "", "Kopeg", "Kuhn HRB 303 D", "", 5, 0],
+  ["0106", "Kopeg Kuhn HRB 301", "", "Kopeg", "Kuhn HRB 301", "", 5, 0],
+  ["0107", "Spitmachine Selvatici (2,5 m)", "", "Spitmachine", "Selvatici (2,5 m)", "", 5, 0],
+  ["0108", "Spitmachine Gramegna (3m)", "", "Spitmachine", "Gramegna (3m)", "", 5, 0],
+  ["0109", "Spit-Kopeg Combi Gramegna - Kuhn (2,5m)", "", "Spit-kopeg combi", "Gramegna - Kuhn (2,5m)", "", 5, 0],
+  ["0110", "Ploeg Kuhn varimaster 122", "", "Ploeg", "Kuhn varimaster 122", "", 5, 0],
+  ["0111", "Spitmachine Selvatici (1,5m)", "", "Spitmachine", "Selvatici (1,5m)", "", 5, 0],
+  ["0112", "Grote Kettinggraver Hoes", "", "Kettinggraver", "Hoes", "", 5, 0],
+  ["0113", "Woel WIFO 1 poot", "", "Woel", "WIFO 1 poot", "", 5, 0],
+  ["0114", "Rubber Schuif", "", "Rubber schuif", "", "", 5, 0],
+  ["0115", "Cultivator Rumpstad (2,5m - 11 tands)", "", "Cultivator", "Rumpstad (2,5m - 11 tands)", "", 5, 0],
+  ["0116", "Wortelsnijder WIFO", "", "Wortelsnijder", "WIFO", "", 5, 0],
+  ["0117", "Woel WIFO (3poot)", "", "Woel", "WIFO (3poot)", "", 5, 0],
+  ["0118", "Landrol", "LPS-60-X", "Landrol", "", "", 5, 0],
+  ["0119", "Potgrondwagen eigenbouw", "LPS-43-X", "Potgrondwagen", "eigenbouw", "", 4, 0],
+  ["0120", "Kilverbak AP Groot", "LDJ-68-J", "Kilverbak", "AP 275-400", "7-7-2003", 5, 0],
+  ["0121", "Kilverbak (3m)", "LPS-58-X", "Kilverbak", "(3m)", "30-6-1992", 5, 0],
+  ["0122", "Kilverbak AP (1,5 - 1,8) Blauw", "LLR-26-T", "Kilverbak", "AP (1,5 - 1,8)", "", 5, 0],
+  ["0123", "Kopeg Zaaier Kuhn hrb 185 Lucht", "", "Kopeg", "Kuhn hrb 185", "", 5, 0],
+  ["0124", "Messenfrees Celli 1.8", "", "Messenfrees", "Celli 1.8", "", 5, 0],
+  ["0125", "Messenfrees JNC 1,7 - kas", "", "Messenfrees", "JNC 1,7 - 2", "18-1-2023", 5, 0],
+  ["0126", "Kleine Kettinggraver Hoes", "", "Kettinggraver", "Hoes", "", 5, 0],
+  ["0127", "Woel eigenbouw tbv minitrekker", "", "Woel", "eigenbouw tbv minitrekker", "", 5, 0],
+  ["0128", "Spitmachine Celli 175", "", "Spitmachine", "Celli 175", "", 5, 0],
+  ["0129", "Kilverbak AP (laser) SM", "", "Kilverbak", "AP (laser) SM", "", 5, 0],
+  ["0130", "Cultivator Evers", "", "Cultivator", "Evers", "", 5, 0],
+  ["0200", "Balenpers New Holland 8090", "", "Balenpers", "New Holland 8090", "", 5, 1],
+  ["0201", "Wikkelaar Mc Hale 998", "LBF-99-D", "Wikkelaar", "Mc Hale 998", "16-2-2007", 5, 0],
+  ["0202", "Voorlader Mailleux mx 120", "", "Voorlader", "Mailleux mx 120", "", 6, 0],
+  ["0203", "Platte Wagen 1", "", "Platte wagen", "", "", 4, 0],
+  ["0204", "Platte Wagen 2", "", "Platte wagen", "", "", 4, 0],
+  ["0205", "Balenklem WIFO", "", "Balenklem", "WIFO", "", 6, 0],
+  ["0206", "Krone Big M", "THN-80-X", "Zelfrijdende maaier", "Krone Big M 420 CV", "30-6-2014", 5, 1],
+  ["0207", "Triplemaaier Kuhn", "", "Triplemaaier", "Kuhn FFC9530", "", 5, 0],
+  ["0208", "Schudder Claas Volto 640", "", "Schudder", "Claas Volto 640", "", 5, 0],
+  ["0209", "Cirkelhark Claas Liner", "LBF-98-D", "Cirkelhark", "Claas Liner 780L", "6-2-2015", 5, 0],
+  ["0210", "Strautmann 1", "LBF-14-H", "Opraapwagen", "Strautmann Giga Vitesse CFS 4001", "5-2-2016", 5, 0],
+  ["0213", "Strautmann 2", "LBF-15-H", "Opraapwagen", "Strautmann Giga Vitesse CFS 4001", "4-2-2016", 5, 0],
+  ["0214", "Hooipers Welger 730", "LBF-01-F", "Hooipers", "Welger 730", "7-2-1997", 5, 0],
+  ["0216", "Weidesleep", "", "Weidesleep", "", "", 5, 0],
+  ["0217", "Krone Big M", "TBN-80-X", "Zelfrijdende maaier", "Krone Big M 420 CV", "17-6-2014", 5, 1],
+  ["0218", "Kuilverdeler VDW", "", "Kuilverdeler", "VDW", "", 5, 0],
+  ["0219", "Silagewagen 2", "LGL-59-P", "Silagewagen", "Kaweco Radium 45", "28-5-2020", 4, 0],
+  ["0220", "Silagewagen 1", "LGL-58-P", "Silagewagen", "Kaweco Radium 45", "20-5-2020", 4, 0],
+  ["0300", "Maaikorf Herder (3m) 1404", "", "Maaikorf", "Herder (3m) 1404", "", 5, 0],
+  ["0301", "Maaikorf Herder (2,5) KX121", "", "Maaikorf", "Herder (2,5) KX121", "", 5, 0],
+  ["0302", "Maaikorf Herder (3,0) ec140", "", "Maaikorf", "Herder (3,0) ec140", "", 5, 0],
+  ["0303", "Maaikorf Herder (3m) verlengstuk", "", "Maaikorf", "Herder (3m) verlengstuk", "", 5, 0],
+  ["0304", "Maaikorf Herder (3m) ew140", "", "Maaikorf", "Herder (3m) ew140", "", 5, 0],
+  ["0305", "Maaikorf Herder (4,3m) 215", "", "Maaikorf", "Herder (4,3m) 215", "", 5, 0],
+  ["0306", "Maaikorf Herder (2,5m) verlengstuk", "", "Maaikorf", "Herder (2,5m) verlengstuk", "", 5, 0],
+  ["0307", "Klepelmaaier Seppie 2,50 platte klepelmaaier", "", "Klepelmaaier", "Seppie 2,50", "", 5, 0],
+  ["0308", "Armmaaier Mc Connell 4330 armmaaier", "", "Armmaaier", "Mc Connell 4330", "", 5, 0],
+  ["0309", "Klepelmaaier Votex jumbo 190", "", "Klepelmaaier", "Votex jumbo 190", "", 5, 0],
+  ["0310", "Armmaaier Hemos combi klepelmaaier", "", "Armmaaier", "Hemos combi klepelmaaier", "", 5, 0],
+  ["0311", "Armmaaier Herder T214 maaiarm + maaier", "", "Armmaaier", "Herder T214 maaiarm + maaier", "", 5, 0],
+  ["0312", "Klepelmaaier Celli plat 170", "", "Klepelmaaier", "Celli sitio 1,7", "", 5, 0],
+  ["0313", "Takkenversnipperaar Ufkes Greentec 930", "", "Takkenversnipperaar", "Ufkes Greentec 930", "", 5, 1],
+  ["0314", "Bomenbakje eigenbouw", "", "Bomenbakje", "eigenbouw", "", 5, 0],
+  ["0315", "Stobbefrees Vermeer 710", "LPS-72-X", "Stobbefrees", "Vermeer 710", "30-6-1989", 5, 1],
+  ["0316", "Stobbefrees Ufkes Greentec Piranha", "", "Stobbefrees", "Ufkes Greentec Piranha", "", 5, 1],
+  ["0317", "Gazonmaaier Ransomes", "", "Gazonmaaier", "Ransomes", "", 5, 0],
+  ["0318", "Snipperwagen Veenhuis", "", "Snipperwagen", "Veenhuis", "", 4, 0],
+  ["0319", "Armmaaier Mc Connell kleine armmaaier", "", "Armmaaier", "Mc Connell klein", "", 5, 0],
+  ["0320", "McConnel 2023", "", "Maaiarm", "McConnel PA4330", "", 5, 0],
+  ["0400", "Mestverspreider Strautmann VS 1204", "LBG-73-S", "Mestverspreider", "Strautmann VS 1204", "", 5, 0],
+  ["0401", "Mengmesttank Kaweco double twin shift", "", "Mengmesttank", "Kaweco double twin shift", "", 5, 0],
+  ["0402", "Mesttank Zunhammer", "", "Mesttank", "Zunhammer MIKE 15,5 PU", "5-1-2021", 5, 0],
+  ["0403", "Vacuümwagen Manstrak 7000", "LPS-70-X", "Vacuümwagen", "Manstrak 7000", "30-6-1997", 5, 0],
+  ["0404", "Mestmixer Schrijver", "", "Mestmixer", "Schrijver", "", 5, 0],
+  ["0500", "Doorzaaimachine Vredo", "", "Doorzaaimachine", "Vredo", "", 5, 0],
+  ["0501", "Maiszaaier Kverneland", "", "Maiszaaier", "Kverneland", "", 5, 0],
+  ["0502", "Zaaimachine Kongskilde Demeter 3000", "", "Zaaimachine", "Kongskilde Demeter 3000", "", 5, 0],
+  ["0503", "Zaaimachine Brillion (2,7m)", "", "Zaaimachine", "Brillion (2,7m)", "", 5, 0],
+  ["0504", "Zaaimachine Brillion (1,5m)", "", "Zaaimachine", "Brillion (1,5m)", "", 5, 0],
+  ["0505", "Kopeg-zaaimachine Remac", "", "Kopeg-zaaimachine", "Remac", "", 5, 0],
+  ["0602", "Haakarmcarrier VGM", "LBN-43-R", "Haakarmcarrier", "VGM", "", 4, 0],
+  ["0603", "Kipper Beboma 1", "LFV-60-S", "Kipper", "Beboma", "30-6-2017", 4, 0],
+  ["0604", "Kipper Beboma 2", "LFV-62-S", "Kipper", "Beboma", "30-6-2017", 4, 0],
+  ["0605", "Kipper Wagenaar 1,5 m3", "", "Kipper", "Wagenaar 1,5 m3", "", 4, 0],
+  ["0606", "Kipper eigenbouw 2,5 m3", "", "Kipper", "eigenbouw 2,5 m3", "", 4, 0],
+  ["0607", "Dieplader", "LPS-53-X", "Dieplader", "", "", 4, 0],
+  ["0608", "Jumbo", "", "Jumbo", "", "", 4, 0],
+  ["0609", "Containerbak VGM 1", "", "Containerbak", "VGM", "", 4, 0],
+  ["0610", "Containerbak VGM 2", "", "Containerbak", "VGM", "", 4, 0],
+  ["0611", "Containerbak VGM 3", "", "Containerbak", "VGM", "", 4, 0],
+  ["0612", "Containerbak VGM 4", "", "Containerbak", "VGM", "", 4, 0],
+  ["0613", "Containerbak VGM 5", "", "Containerbak", "VGM", "", 4, 0],
+  ["0614", "Containerbak (takken) eigenbouw", "", "Containerbak", "eigenbouw", "", 4, 0],
+  ["0615", "Containerbak (blauw) AHE", "", "Containerbak", "AHE", "", 4, 0],
+  ["0616", "Container (oranje/wit)", "", "Container", "", "", 4, 0],
+  ["0617", "Kipper VGM 3-asser", "LRJ-51-T", "Kipper", "VGM ZK30", "", 4, 0],
+  ["0618", "Kipper 5 m3", "LLL-77-R", "Kipper", "Palmse", "", 4, 0],
+  ["0700", "Valtra A93", "TBN-21-Z", "Trekker", "Valtra A93", "8-2-2012", 0, 1],
+  ["0701", "New Holland T7.245", "TKN-27-P", "Trekker", "New Holland T7.245", "9-1-2018", 0, 1],
+  ["0702", "Valtra N141", "TDH-25-K", "Trekker", "Valtra N141", "30-6-2007", 0, 1],
+  ["0703", "Valtra T214", "TDG-08-R", "Trekker", "Valtra T214", "21-2-2017", 0, 1],
+  ["0704", "Valtra N174 A", "TBN-51-Z", "Trekker", "Valtra N174", "7-2-2019", 0, 1],
+  ["0705", "Valtra N154", "TZK-25-V", "Trekker", "Valtra N154", "30-6-2016", 0, 1],
+  ["0706", "Valtra T163", "TBZ-53-X", "Trekker", "Valtra T163", "30-6-2013", 0, 1],
+  ["0707", "Valtra 405", "T-53-BDB", "Trekker", "Valmet 405", "3-1-2022", 0, 1],
+  ["0708", "Valtra T214 Herder", "TBN-49-Z", "Trekker", "Valtra T214 Herder", "22-2-2015", 0, 1],
+  ["0709", "Valtra T214 Stephan", "T-29-FHV", "Trekker", "Valtra T214", "2-2-2021", 0, 1],
+  ["0710", "New Holland T3040", "TBN-18-Z", "Trekker", "New Holland T3040", "11-2-2014", 0, 1],
+  ["0711", "John Deere 3046R", "T-15-DPB", "Trekker", "John Deere 3046R", "11-1-2022", 0, 1],
+  ["0712", "John Deere 3045R", "TBN-15-Z", "Trekker", "John Deere 3045R", "19-2-2018", 0, 1],
+  ["0713", "Valtra T234 Jouke", "TBN-54-Z", "Trekker", "Valtra T234", "15-2-2018", 0, 1],
+  ["0714", "Valtra T174", "T-29-BNB", "Trekker", "Valtra T174", "31-12-2016", 0, 1],
+  ["0715", "Valtra T174 Adri", "T-43-DSN", "Trekker", "Valtra T174", "1-12-2021", 0, 1],
+  ["0716", "New Holland T7030", "", "Trekker", "New Holland T7030", "30-6-2012", 0, 1],
+  ["0717", "John Deere 3046R Sandy", "T-03-HLV", "Trekker", "John Deere 3046R", "1-4-2026", 0, 1],
+  ["0801", "Schijvenploeg eigenbouw", "", "Schijvenploeg", "eigenbouw", "", 5, 0],
+  ["0802", "Wallenfrees Bos", "", "Wallenfrees", "Bos", "", 5, 0],
+  ["0803", "Transportbak mob. kraan eigenbouw", "", "Transportbak", "eigenbouw", "", 6, 0],
+  ["0804", "Oprijwagen Agrifirm", "", "Oprijwagen", "Agrifirm", "", 4, 0],
+  ["0805", "GML Oprijwagen", "LGP-54-P", "Oprijwagen", "GML", "30-6-2002", 4, 0],
+  ["0806", "Rupskruiwagen Messersi", "", "Rupskruiwagen", "Messersi", "", 5, 0],
+  ["0807", "Wallenvijzel Hemos", "", "Wallenvijzel", "Hemos", "", 5, 0],
+  ["0808", "Rolbezem AP 2500", "", "Rolbezem", "AP 2500", "", 5, 0],
+  ["0809", "Schepbak Peecon", "", "Schepbak", "Peecon", "", 6, 0],
+  ["0810", "Sleuvenvijzel eigenbouw Hemos", "", "Sleuvenvijzel", "eigenbouw Hemos", "", 5, 0],
+  ["0811", "Kunstmeststrooier PZ Vibax", "", "Kunstmeststrooier", "PZ Vibax", "", 5, 0],
+  ["0812", "Grondschuif", "", "Grondschuif", "", "", 5, 0],
+  ["0813", "Compressor Rotair", "", "Compressor", "Rotair", "", 5, 0],
+  ["0814", "Palletvork Mazal", "", "Palletvork", "Mazal", "", 6, 0],
+  ["0815", "Stenenklem Wagenaar", "", "Stenenklem", "Wagenaar", "", 6, 0],
+  ["0900", "Veldspuit CHD", "LBF-21-F", "Veldspuit", "CHD", "17-2-2011", 5, 0],
+  ["0901", "Spuit Weed-it + watertank", "", "Spuit", "Weed-it + watertank", "", 5, 0],
+  ["0905", "Watervijzel Thoma", "", "Watervijzel", "Thoma", "", 5, 0],
+  ["0998", "Kubota 2t", "", "Minigraver", "Kubota KX019-4", "10-1-2011", 1, 1],
+  ["0999", "Volvo mobiel Dennis", "T-38-FLK", "Mobiele kraan", "Volvo EWR150W", "14-7-2023", 1, 1],
+  ["1000", "Shovel Volvo L60E", "TBN-59-Z", "Shovel", "Volvo L60E", "1-2-2005", 2, 1],
+  ["1001", "Shovel Volvo L60F", "TBN-58-Z", "Shovel", "Volvo L60F", "18-2-2011", 2, 1],
+  ["1002", "Shovelbak kuilbak", "", "Shovelbak", "kuilbak", "", 6, 0],
+  ["1003", "Shovelbak becobak", "", "Shovelbak", "becobak", "", 6, 0],
+  ["1004", "Shovelbak palletvork 1", "", "Shovelbak", "palletvork", "", 6, 0],
+  ["1005", "Shovelbak palletvork 2", "", "Shovelbak", "palletvork", "", 6, 0],
+  ["1006", "Shovelbak palletvork korte lepels", "", "Shovelbak", "palletvork korte lepels", "", 6, 0],
+  ["1007", "Shovelbak dichte bak", "", "Shovelbak", "dichte bak", "", 6, 0],
+  ["1100", "Kubota Adri", "", "Minigraver", "Kubota KX042-4 (KX121-3x)", "1-1-2021", 1, 1],
+  ["1101", "Kubota Dennis", "", "Minigraver", "Kubota KX042-5 (KX121-3x)", "1-4-2026", 1, 1],
+  ["1102", "Kubota Theo", "", "Minigraver", "Kubota KX042-4", "2-1-2023", 1, 1],
+  ["1104", "Doosan Mobiel", "TKG-69-V", "Mobiele kraan", "Doosan DX165W-5", "27-1-2022", 1, 1],
+  ["1105", "Doosan Rups", "", "Rupskraan", "Doosan DX140LCR-5", "", 1, 1],
+  ["1106", "Kobelco 210", "", "Rupskraan", "Kobelco SK210LC-11", "1-1-2022", 1, 1],
+  ["1107", "Verlengstuk eigenbouw minigraver", "", "Verlengstuk", "eigenbouw minigraver", "", 6, 0],
+  ["1108", "Verlengstuk hijshaak", "", "Verlengstuk", "eigenbouw rood", "", 6, 0],
+  ["1109", "Verlengstuk eigenbouw jib", "", "Verlengstuk", "eigenbouw jib", "", 6, 0],
+  ["1111", "Puinbak Mazal", "", "Puinbak", "Mazal", "", 6, 0],
+  ["1114", "Palletvorken eigenbouw minigraver", "", "Palletvorken", "eigenbouw minigraver", "", 6, 0],
+  ["1115", "Verlengstuk eigenbouw rood met bak", "", "Verlengstuk", "eigenbouw rood met bak", "", 6, 0],
+  ["1116", "Verlengstuk zwart connector", "", "Verlengstuk", "zwart connector", "", 6, 0],
+  ["1117", "Sorteergrijper VGZ-1", "", "Sorteergrijper", "VGZ-1", "", 6, 0],
+  ["1118", "Sorteergrijper VGZ-2", "", "Sorteergrijper", "VGZ-2", "", 6, 0],
+  ["1119", "Sorteergrijper Demanec", "", "Sorteergrijper", "Demanec", "", 6, 0],
+  ["1120", "Vacuümheffer Hamevac", "", "Vacuümheffer", "Hamevac", "", 6, 0],
+  ["1121", "Knijpbak Atlas", "", "Knijpbak", "Atlas", "", 6, 0],
+  ["1122", "Knijpbak Beco", "", "Knijpbak", "Beco", "", 6, 0],
+  ["1123", "Stenenklem Beco", "", "Stenenklem", "Beco", "", 6, 0],
+  ["1124", "Trilblok minigraver", "", "Trilblok", "minigraver", "", 6, 0],
+  ["1125", "Hydr. trilblok mobiele kraan", "", "Trilblok", "geschikt voor de mobiele kraan", "", 6, 0],
+  ["1126", "Kraanbak 40 cm", "", "Kraanbak", "40 cm", "", 6, 0],
+  ["1127", "Kraanbak 90 cm", "", "Kraanbak", "90 cm", "", 6, 0],
+  ["1128", "Kraanbak 100 cm", "", "Kraanbak", "100 cm", "", 6, 0],
+  ["1129", "Kraanbak 150 cm New Holland rupskraan", "", "Kraanbak", "150 cm New Holland rupskraan", "", 6, 0],
+  ["1130", "Kraanbak 75 cm", "", "Kraanbak", "75 cm", "", 6, 0],
+  ["1131", "Kraanbak 60 cm", "", "Kraanbak", "60 cm", "", 6, 0],
+  ["1132", "Kraanbak 180 cm met geschroefde voorzetmessen", "", "Kraanbak", "180 cm met geschroefde voorzetmessen", "", 6, 0],
+  ["1133", "Kraanbak 70 cm tandenbak", "", "Kraanbak", "70 cm tandenbak", "", 6, 0],
+  ["1134", "Kraanbak 180 cm Atlas mobiel", "", "Kraanbak", "180 cm Atlas mobiel", "", 6, 0],
+  ["1135", "Kraanbak 180 cm Doosan rups", "", "Kraanbak", "180 cm Doosan rups", "", 6, 0],
+  ["1136", "Kraanbak brede bak", "", "Kraanbak", "brede bak", "", 6, 0],
+  ["1137", "Kraanbak brede bak 121 DV", "", "Kraanbak", "brede bak 121 DV", "", 6, 0],
+  ["1138", "Kraanbak bananenbak Kubota DV", "", "Kraanbak", "bananenbak Kubota DV", "", 6, 0],
+  ["1139", "Kraanbak puinbak DV", "", "Kraanbak", "puinbak DV", "", 6, 0],
+  ["1140", "Kraanbak palendrukker", "", "Kraanbak", "palendrukker", "", 6, 0],
+  ["1141", "Kraanbak bandenklem", "", "Kraanbak", "bandenklem", "", 6, 0],
+  ["1142", "Kraanbak brede bak grote Kubota", "", "Kraanbak", "brede bak grote Kubota", "", 6, 0],
+  ["1143", "Kraanbak graafbak 60 cm grote Kubota", "", "Kraanbak", "graafbak 60 cm grote Kubota", "", 6, 0],
+  ["1144", "Kraanbak puinriek grote Kubota", "", "Kraanbak", "puinriek grote Kubota", "", 6, 0],
+  ["1145", "Kraanbak bananenbak grote Kubota", "", "Kraanbak", "bananenbak grote Kubota", "", 6, 0],
+  ["1200", "MAN Andy", "77-BDH-4", "Vrachtwagen", "MAN TGM", "", 3, 0],
+  ["1201", "DAF CF Sandy", "BX-LS-87", "Vrachtwagen", "DAF CF 65 FA", "", 3, 0],
+  ["1202", "John Deere 6140R Herder", "TDS-16-H", "Trekker", "John Deere 6140R", "30-6-2014", 0, 1],
+  ["1203", "Tankwagen Happert 1", "WD-ZS-93", "Tankwagen", "Happert", "", 4, 0],
+  ["1204", "Tankwagen Happert 2", "WD-ZT-20", "Tankwagen", "Happert", "", 4, 0],
+  ["1205", "Tandem oprij Happert 1", "09-WF-VS", "Oprijwagen", "Happert tandem", "", 4, 0],
+  ["1206", "Tandem oprij Happert 2", "52-WT-BB", "Oprijwagen", "Happert tandem", "", 4, 0],
+  ["1207", "Mercedes-Benz Sprinter", "6-VBN-03", "Bus", "Mercedes-Benz Sprinter", "", 3, 0],
+  ["1208", "DAF Dennis", "BZ-LH-34", "Vrachtwagen", "DAF", "", 3, 0],
+  ["1209", "Ford Wim", "VGT-94-R", "Bus", "Ford Transit", "15-3-2021", 3, 0],
+  ["1210", "Peugeot Boxer", "1-VNF-74", "Bus", "Peugeot Boxer", "", 3, 0],
+  ["1211", "2-tonner aanhanger Happert", "75-WH-GF", "Aanhanger", "Happert", "", 4, 0],
+  ["1212", "Kiepwagen Happert", "31-WR-XD", "Kiepwagen", "Happert", "", 4, 0],
+  ["1214", "Peugeot Dennis Schermer", "VKL-95-B", "Bestelauto", "Peugeot Partner", "28-5-2021", 3, 0],
+  ["1215", "Opel Combo 1", "6-VVJ-76", "Bestelauto", "Opel Combo", "", 3, 0],
+  ["1216", "Schaftwagen rood", "LLR-69-T", "Schaftwagen", "rood", "30-12-2020", 4, 0],
+  ["1217", "Schaftwagen wit", "LLP-69-T", "Schaftwagen", "wit", "30-6-2021", 4, 0],
+  ["1218", "Peugeot Partner Teun", "VZ-491-K", "Bestelauto", "Peugeot Partner", "31-8-2016", 3, 0],
+  ["1219", "Shovel Giant", "T-56-HGN", "Shovel", "Giant G2700+ (W27)", "31-1-2026", 2, 1],
+  ["1302", "Zoutstrooier Nido Wim", "", "Zoutstrooier", "Nido", "", 7, 0],
+  ["1303", "Sneeuwschuif Jongerius N121", "", "Sneeuwschuif", "Jongerius N121", "", 7, 0],
+  ["1304", "Sneeuwschuif Nido New Holland", "", "Sneeuwschuif", "Nido New Holland", "", 7, 0],
+  ["1305", "Sneeuwschuif Adri", "", "Sneeuwschuif", "", "", 7, 0],
+  ["1306", "Sneeuwschuif Nido Landini", "", "Sneeuwschuif", "Nido Landini", "", 7, 0],
+  ["1307", "Sneeuwschuif shovel", "", "Sneeuwschuif", "shovel", "", 7, 0],
+  ["1308", "Sneeuwschuif Nido N121", "", "Sneeuwschuif", "Nido N121", "", 7, 0],
+  ["1309", "Zoutstrooier Nido nat", "", "Zoutstrooier", "Nido nat", "", 7, 0],
+  ["1310", "Zoutstrooier Nido klein (achter de trekker)", "", "Zoutstrooier", "Nido klein", "", 7, 0],
+  ["1311", "Sneeuwschuif Nido N141", "", "Sneeuwschuif", "Nido N141", "", 7, 0],
+  ["1312", "Sneeuwschuif Jongerius HHNK 8150", "", "Sneeuwschuif", "Jongerius HHNK 8150", "", 7, 0],
+  ["1313", "Sneeuwschuif Nido HYL 240", "", "Sneeuwschuif", "Nido HYL 240", "", 7, 0],
+  ["1314", "Zoutstrooier Rauch 35", "", "Zoutstrooier", "Rauch 35", "", 7, 0],
+  ["1315", "Zoutstrooier Rauch 601 Sandy", "", "Zoutstrooier", "Rauch 601", "", 7, 0],
+  ["1316", "Zoutstrooier Rauch Axeo 18.1 Adri", "", "Zoutstrooier", "Rauch Axeo 18.1", "", 7, 0],
+  ["1317", "Handstrooier rood", "", "Handstrooier", "rood", "", 7, 0],
+  ["1318", "Handstrooier groen", "", "Handstrooier", "groen", "", 7, 0],
+  ["1319", "Handstrooier zwart 1", "", "Handstrooier", "zwart", "", 7, 0],
+  ["1320", "Handstrooier zwart 2", "", "Handstrooier", "zwart", "", 7, 0],
+  ["1401", "Stamper Wacker", "", "Stamper", "Wacker", "", 8, 0],
+  ["1403", "Trilplaat Wacker 5 tonner", "", "Trilplaat", "Wacker 5 tonner", "", 8, 0],
+  ["1404", "Trilplaat Wacker WP4 1550", "", "Trilplaat", "Wacker WP4 1550", "", 8, 0],
+  ["1405", "Stenenknipper", "", "Stenenknipper", "", "", 8, 0],
+  ["1406", "Waterpomp Vlaming", "", "Waterpomp", "Vlaming", "", 8, 0],
+  ["1407", "Kettingzaag Stihl klein", "", "Kettingzaag", "Stihl klein", "", 8, 0],
+  ["1408", "Kettingzaag Stihl middel", "", "Kettingzaag", "Stihl middel", "", 8, 0],
+  ["1409", "Bosmaaier Stihl PS 280", "", "Bosmaaier", "Stihl PS 280", "", 8, 0],
+  ["1410", "Kettingzaag Stihl groot", "", "Kettingzaag", "Stihl groot", "", 8, 0],
+  ["1411", "Heggenschaar Stihl lang", "", "Heggenschaar", "Stihl lang", "", 8, 0],
+  ["1412", "Bladblazer Stihl", "", "Bladblazer", "Stihl", "", 8, 0],
+  ["1413", "Heggenschaar Stihl kort", "", "Heggenschaar", "Stihl kort", "", 8, 0],
+  ["1414", "Betonzaag Makita", "", "Betonzaag", "Makita", "", 8, 0],
+  ["1415", "Opel Dennis Visser", "VD-460-N", "Bestelauto", "Opel Combo", "", 3, 0],
+  ["1416", "Renault servicebus", "VD-826-V", "Bus", "Renault Master", "", 3, 0],
+  ["1417", "Volvo Mobiel", "TBN-63-Z", "Mobiele kraan", "Volvo EW150E", "10-2-2019", 1, 1],
+  ["1419", "Citroën ë-Berlingo", "VVB-09-F", "Bestelauto", "Citroën ë-Berlingo", "31-3-2023", 3, 0],
+  ["1420", "Citroën Lucas", "VNB-09-N", "Bestelauto", "Citroën Jumpy", "27-10-2021", 3, 0],
+  ["1421", "Opel Pieter", "VNG-31-K", "Bestelauto", "Opel Vivaro", "22-3-2022", 3, 0],
+  ["1422", "Oprijwagen 3-asser", "08-WS-TP", "Oprijwagen", "Hapert", "31-7-2018", 4, 0],
+  ["1423", "Iveco", "", "Vrachtwagen", "Iveco kipper", "27-1-2022", 3, 0],
+  ["1424", "Citroën ë Joost", "", "Bestelauto", "Citroën ë-Berlingo", "", 3, 0],
+  ["1425", "Goweil ronde pers", "LLR-20-T", "Ronde balenpers", "Goweil", "13-7-2017", 5, 1]
+];
+// Machines die er al in stonden (eigen naam van de jongens, of de oude startnaam) -> machinenummer
+const LIJST_KOPPEL = {
+  "0700": ["Valtra A93"], "0705": ["Valtra N154"], "0704": ["Valtra N174", "Valtra N175"], "0713": ["Valtra T234"],
+  "0708": ["Valtra T214 Herder Peter"], "0709": ["Valtra T214 Stephan"], "0701": ["New Holland T7.245 AC"],
+  "0716": ["New Holland T7030", "New Holland T7070"], "0712": ["John Deere 3045"], "0711": ["John Deere 3046R (Andy)"],
+  "0717": ["John Deere 3046R (Sandy)"], "1202": ["John Deere 6140R", "John Deere 6140"], "0999": ["Volvo mobiele kraan (Dennis)"],
+  "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
+  "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
+};
+const LIJST_VERSIE = 1;
+// Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
+// sync, zodat het apparaat ziet wat er al is. Bestaande machines houden hun naam en alles wat erbij staat; ze krijgen
+// alleen nummer, merk/type, bouwjaar en (als dat leeg is) kenteken. Nieuwe machines krijgen id n<nr> met g = 1: wat al in
+// de groep staat (of daar is weggehaald) wint altijd, en twee apparaten tegelijk maken geen dubbele.
+function lijstInlezen() {
+  if (store.get("wpbLijst", 0) >= LIJST_VERSIE) return false;
+  const kent = k => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const metNr = new Set(db.machines.map(m => m.nr).filter(Boolean));
+  let veranderd = false;
+  for (const m of db.machines.slice()) {
+    if (m.nr) continue;
+    const naam = m.naam.trim().toLowerCase();
+    const r = MACHINELIJST.find(r => !metNr.has(r[0]) && r[2] && kent(r[2]) === kent(m.kenteken))
+      || MACHINELIJST.find(r => !metNr.has(r[0]) && (LIJST_KOPPEL[r[0]] || []).some(n => n.toLowerCase() === naam))
+      || MACHINELIJST.find(r => !metNr.has(r[0]) && r[1].toLowerCase() === naam);
+    if (!r) continue;
+    metNr.add(r[0]);
+    const n = Object.assign({}, m, { nr: r[0], model: m.model || r[4], bouwjaar: m.bouwjaar || r[5], kenteken: m.kenteken || r[2] });
+    if (groepAan()) wijzig("machine", n); // net bijgewerkt met de groep: deze wijziging mag winnen
+    else { db.machines[db.machines.findIndex(x => x.id === m.id)] = n; if (!meta[m.id]) meta[m.id] = { s: "machine", g: 1 }; }
+    veranderd = true;
+  }
+  for (const r of MACHINELIJST) {
+    const id = "n" + r[0];
+    if (metNr.has(r[0]) || meta[id] || db.machines.some(m => m.id === id)) continue; // bestaat al, of is weggehaald
+    db.machines.push({ id, nr: r[0], naam: r[1], kenteken: r[2], type: r[3], model: r[4], bouwjaar: r[5], cat: CATS[r[6]], urenteller: !!r[7], uren: null, interval: {} });
+    meta[id] = { s: "machine", g: 1 };
+    if (groepAan()) dirty.add(id);
+    veranderd = true;
+  }
+  store.set("wpbLijst", LIJST_VERSIE);
+  if (veranderd) { bewaar(); planSync(); }
+  return veranderd;
+}
+
 /* ---------- hulpjes ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -393,6 +690,8 @@ function kStatus(k) {
 const keuringenVan = mid => db.keuringen.filter(k => k.machineId === mid).sort((a, b) => a.tot - b.tot);
 const kVerloopt = ms => { const ids = new Set(ms.map(m => m.id)); return db.keuringen.filter(k => ids.has(k.machineId)).map(k => ({ k, s: kStatus(k) })).filter(o => o.s.lvl !== "ok").sort((a, b) => a.k.tot - b.k.tot); };
 const addMonths = (ts, n) => { const d = new Date(ts); d.setMonth(d.getMonth() + n); return d.getTime(); };
+// "Laatste beurt invullen": alleen machines met een urenteller of een interval (niet elke kraanbak of kettingzaag)
+const beurtNodig = m => !!(m.urenteller || (m.interval && (m.interval.uren || m.interval.maanden))) && !lastOh(m.id);
 const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid).sort((a, b) => b.t - a.t)[0];
 const numOrNull = v => { v = String(v ?? "").replace(/\./g, "").replace(",", ".").trim(); if (v === "") return null; const n = Math.round(Number(v)); return isNaN(n) ? null : n; };
 
@@ -479,7 +778,7 @@ async function vraag(body, foto) {
 }
 function omschr(soort, o) {
   if (soort === "storing") return [mName(o), o.tekst, o.prio === "dringend" ? "dringend" : "als er tijd is", o.status === "klaar" ? "klaar" : "open"].join(" · ");
-  if (soort === "machine") return `${o.naam} (${catOf(o)})`;
+  if (soort === "machine") return `${o.nr ? o.nr + " " : ""}${o.naam} (${catOf(o)})`;
   if (soort === "keuring") return [mach(o.machineId)?.naam || "?", o.soort, "geldig tot " + csvDatum(o.tot)].join(" · ");
   return [mach(o.machineId)?.naam || "?", o.wat, o.uren != null ? nf(o.uren) + " uur" : ""].filter(Boolean).join(" · ");
 }
@@ -509,8 +808,8 @@ async function syncNu() {
     // 2. eigen wijzigingen versturen
     const ids = teVersturen(), gBij = {}, stuur = [];
     ids.forEach(id => { const r = rijVan(id); if (r) { stuur.push(r); gBij[id] = r.gewijzigd; } else dirty.delete(id); });
-    for (let i = 0; i < stuur.length; i += 100) {
-      const r = await vraag({ rijen: stuur.slice(i, i + 100) });
+    for (let i = 0; i < stuur.length; i += 60) {
+      const r = await vraag({ rijen: stuur.slice(i, i + 60) });
       if (!r || !r.ok) throw new Error(r && r.fout || "versturen");
     }
     ids.forEach(id => { if (meta[id] && meta[id].g === gBij[id]) dirty.delete(id); });
@@ -550,6 +849,7 @@ async function syncNu() {
     bewaar();
     sync.laatst = Date.now(); store.set("wpbLaatst", sync.laatst); sync.fout = "";
     pushControle();
+    if (lijstInlezen()) { veranderd = true; nogEens = true; }
     if (veranderd) render();
   } catch (e) {
     sync.fout = String(e && e.message) === "code" ? "Groepscode klopt niet" : (navigator.onLine ? "Bijwerken lukte niet, probeert het zo opnieuw" : "Geen bereik, probeert het later opnieuw");
@@ -681,10 +981,10 @@ function renderMachines() {
   $("#tabs").hidden = true;
   const mc = $("#mcats"); mc.hidden = false; mc.innerHTML = catChips(db.machines, mcat, "data-cat");
   const yr = new Date().getFullYear();
-  const ms = db.machines.filter(m => mcat === "Alles" || catOf(m) === mcat).sort((a, b) => a.naam.localeCompare(b.naam, "nl", { numeric: true }));
+  const ms = db.machines.filter(m => mcat === "Alles" || catOf(m) === mcat).sort(opNr);
   const due = ms.map(m => ({ m, s: ohStatus(m) })).filter(o => o.s.lvl === "late" || o.s.lvl === "soon").sort((a, b) => (a.s.lvl === "late" ? 0 : 1) - (b.s.lvl === "late" ? 0 : 1));
   // Machines zonder vastgelegde beurt: in één keer doorlopen (zelfde volgorde als hieronder)
-  const zonder = CATS.flatMap(c => ms.filter(m => catOf(m) === c)).filter(m => !lastOh(m.id));
+  const zonder = CATS.flatMap(c => ms.filter(m => catOf(m) === c)).filter(beurtNodig);
   instelLijst = zonder.map(m => m.id);
   const instelHTML = zonder.length ? `<button class="due instel" data-instel="1"><span><span class="mname">Laatste beurt invullen</span><span class="sub">Nog bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"}. Met Opslaan, volgende loop je ze achter elkaar door.</span></span><span class="go" aria-hidden="true">›</span></button>` : "";
   const kv = kVerloopt(ms), heeftK = db.keuringen.some(k => ms.some(m => m.id === k.machineId));
@@ -704,7 +1004,7 @@ function renderMachines() {
     const open = all.filter(x => x.status !== "klaar").length;
     const dit = all.filter(x => new Date(x.t).getFullYear() === yr).length;
     const s = ohStatus(m);
-    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span>${m.kenteken ? `<span class="kent">${esc(m.kenteken)}</span>` : ""}<span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${chips(m, s)}</button>`;
+    return `<button class="mtile" data-mach="${esc(m.id)}"><span class="t">${m.nr ? esc(m.nr) + " · " : ""}${esc(m.type || catOf(m))}${m.urenteller && m.uren != null ? " · " + nf(m.uren) + " u" : ""}</span><span class="nm">${esc(m.naam)}</span>${m.kenteken ? `<span class="kent">${esc(m.kenteken)}</span>` : ""}<span class="st">${open ? `<b>${open} open</b> · ` : ""}${dit}× gemeld dit jaar</span>${chips(m, s)}</button>`;
   };
   const grid = mcat === "Alles"
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
@@ -771,7 +1071,7 @@ function newMelding(preMach) {
       <input class="vh" id="cam" type="file" accept="image/*" capture="environment">
       <input class="vh" id="gal" type="file" accept="image/*" multiple></div>
     <div class="field"><label for="msearch">Welke machine?</label>
-      <input id="msearch" type="search" placeholder="Zoek op naam, soort of kenteken" autocomplete="off">
+      <input id="msearch" type="search" placeholder="Zoek op naam, nummer, soort of kenteken" autocomplete="off">
       <div class="cats" id="fcats"></div>
       <div class="mpick" id="mpick"></div>
       <input id="mvrij" type="text" placeholder="Wat is het dan?" hidden></div>
@@ -793,8 +1093,8 @@ function newMelding(preMach) {
     const drawPick = () => {
       const s = q.value.trim().toLowerCase();
       ov.querySelector("#fcats").innerHTML = catChips(db.machines, st.cat, "data-fc");
-      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || (m.naam + " " + (m.type || "") + " " + (m.kenteken || "") + " " + (m.kenteken || "").replace(/-/g, "")).toLowerCase().includes(s)));
-      pick.innerHTML = list.map(m => `<button type="button" data-m="${esc(m.id)}" aria-pressed="${st.machineId === m.id}">${esc(m.naam)}<small>${esc(m.type || catOf(m))}</small></button>`).join("") +
+      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || ((m.nr || "") + " " + m.naam + " " + (m.type || "") + " " + (m.kenteken || "") + " " + (m.kenteken || "").replace(/-/g, "")).toLowerCase().includes(s)));
+      pick.innerHTML = list.map(m => `<button type="button" data-m="${esc(m.id)}" aria-pressed="${st.machineId === m.id}">${esc(m.naam)}<small>${m.nr ? esc(m.nr) + " · " : ""}${esc(m.type || catOf(m))}</small></button>`).join("") +
         `<button type="button" data-m="__overig" aria-pressed="${st.overig}">Overig<small>staat er niet tussen</small></button>`;
     };
     drawFotos(); drawPick(); drawUren(); q.addEventListener("input", drawPick);
@@ -874,7 +1174,7 @@ function machineDetail(mid) {
     : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
     : '<p class="empty">Nog niks vastgelegd.</p>';
   openSheet(`${head(esc(m.naam))}
-    <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}</p>
+    <p class="hint" style="margin-top:-8px">${m.nr ? `nr. <b>${esc(m.nr)}</b> · ` : ""}${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}${m.model || m.bouwjaar ? "<br>" + esc([m.model, m.bouwjaar ? "bouwjaar " + m.bouwjaar : ""].filter(Boolean).join(" · ")) : ""}</p>
     <div class="stats">
       <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
       <div class="stat"><b>${open}</b><span>nu open</span></div>
@@ -1014,9 +1314,14 @@ function urenForm(mid) {
 function machineForm(mid) {
   const m = mid ? mach(mid) : null, iv = (m && m.interval) || {};
   let cat = m ? catOf(m) : (mcat !== "Alles" ? mcat : null);
-  const ut0 = m ? !!m.urenteller : !!(cat && cat !== "Werktuigen" && cat !== "Overig");
+  const ut0 = m ? !!m.urenteller : UREN_CATS.includes(cat);
   openSheet(`${head(m ? "Machine bewerken" : "Machine toevoegen")}
     <div class="field"><label for="mn">Naam</label><input id="mn" type="text" value="${esc(m ? m.naam : "")}" placeholder="Bijv. Valtra T175"></div>
+    <div class="two">
+      <div class="field"><label for="mnr">Machinenummer <span>(optioneel)</span></label><input id="mnr" type="text" inputmode="numeric" value="${esc(m ? m.nr || "" : "")}" placeholder="Bijv. 0720" autocomplete="off"></div>
+      <div class="field"><label for="mbj">Bouwjaar <span>(optioneel)</span></label><input id="mbj" type="text" value="${esc(m ? m.bouwjaar || "" : "")}" placeholder="Bijv. 2019" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="mmt">Merk en type <span>(optioneel)</span></label><input id="mmt" type="text" value="${esc(m ? m.model || "" : "")}" placeholder="Bijv. Valtra T175" autocomplete="off"></div>
     <div class="field"><span class="lbl">Categorie</span><div class="cats wrap" id="mcat">${CATS.map(c => `<button type="button" data-c="${c}" aria-pressed="${cat === c}">${c}</button>`).join("")}</div></div>
     <div class="two">
       <div class="field"><label for="mt">Soort <span>(optioneel)</span></label><input id="mt" type="text" value="${esc(m ? m.type || "" : "")}" placeholder="Bijv. rupskraan, kipper"></div>
@@ -1038,15 +1343,17 @@ function machineForm(mid) {
     ov.querySelector("#mcat").addEventListener("click", e => {
       const b = e.target.closest("[data-c]"); if (!b) return; cat = b.dataset.c;
       ov.querySelectorAll("#mcat button").forEach(o => o.setAttribute("aria-pressed", o === b));
-      if (!m) { ut.checked = cat !== "Werktuigen" && cat !== "Overig"; toonUren(); }
+      if (!m) { ut.checked = UREN_CATS.includes(cat); toonUren(); }
     });
     ov.querySelector("#mOk").onclick = () => {
       const n = ov.querySelector("#mn").value.trim(), t = ov.querySelector("#mt").value.trim(), err = ov.querySelector("#err");
       if (!n) { err.textContent = "Geef de machine een naam."; err.hidden = false; return; }
       if (!cat) { err.textContent = "Kies een categorie."; err.hidden = false; return; }
-      if (db.machines.some(x => x.id !== mid && x.naam.toLowerCase() === n.toLowerCase())) { err.textContent = "Er is al een machine met die naam."; err.hidden = false; return; }
+      const nr = ov.querySelector("#mnr").value.trim();
+      if (nr && db.machines.some(x => x.id !== mid && x.nr === nr)) { err.textContent = "Dat machinenummer is al in gebruik."; err.hidden = false; return; }
+      if (db.machines.some(x => x.id !== mid && x.naam.toLowerCase() === n.toLowerCase() && (x.nr || "") === nr)) { err.textContent = "Er is al een machine met die naam" + (nr ? " en dat nummer" : "") + ". Geef hem een machinenummer of een andere naam."; err.hidden = false; return; }
       const nieuw = Object.assign({}, m || { id: nieuwId("m_") }, {
-        naam: n, type: t, kenteken: ov.querySelector("#mk").value.trim().toUpperCase().replace(/\s+/g, "-"), cat, urenteller: ut.checked,
+        naam: n, type: t, nr, bouwjaar: ov.querySelector("#mbj").value.trim(), model: ov.querySelector("#mmt").value.trim(), kenteken: ov.querySelector("#mk").value.trim().toUpperCase().replace(/\s+/g, "-"), cat, urenteller: ut.checked,
         uren: ut.checked ? numOrNull(ov.querySelector("#mu").value) : null,
         interval: { uren: ut.checked ? numOrNull(ov.querySelector("#miu").value) : null, maanden: numOrNull(ov.querySelector("#mim").value) }
       });
@@ -1166,18 +1473,19 @@ const csvCel = v => {
   if (/^[=+\-@\t\r]/.test(t) && !/^-?\d+$/.test(t)) t = "'" + t; // geen formules uit vrije tekst
   return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 };
+const csvSleutel = info => (info[0] || "~") + " " + info[1]; // nummer, dan naam
 function csvRegels(mid) {
-  const kop = ["Machine", "Categorie", "Soort", "Kenteken", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
+  const kop = ["Nr", "Machine", "Categorie", "Soort", "Kenteken", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
   const rij = [];
-  const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.naam, catOf(m), m.type || "", m.kenteken || ""] : [mName(x), "Overig", "", ""]; };
-  db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: mInfo(o)[0], t: o.t, c: [...mInfo(o), csvDatum(o.t), "Onderhoud", o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
+  const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.nr || "", m.naam, catOf(m), m.type || "", m.kenteken || ""] : ["", mName(x), "Overig", "", ""]; };
+  db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: csvSleutel(mInfo(o)), t: o.t, c: [...mInfo(o), csvDatum(o.t), "Onderhoud", o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
   db.meldingen.filter(x => !mid || x.machineId === mid).forEach(x => {
     const klaar = x.status === "klaar";
-    rij.push({ n: mInfo(x)[0], t: x.t, c: [...mInfo(x), csvDatum(x.t), "Storing", x.tekst, x.uren ?? "", x.door, klaar ? "Opgelost" : "Nog open", x.prio === "dringend" ? "Dringend" : "Als er tijd is", klaar && x.tKlaar ? csvDatum(x.tKlaar) : "", klaar ? x.klaarDoor || "" : ""] });
+    rij.push({ n: csvSleutel(mInfo(x)), t: x.t, c: [...mInfo(x), csvDatum(x.t), "Storing", x.tekst, x.uren ?? "", x.door, klaar ? "Opgelost" : "Nog open", x.prio === "dringend" ? "Dringend" : "Als er tijd is", klaar && x.tKlaar ? csvDatum(x.tKlaar) : "", klaar ? x.klaarDoor || "" : ""] });
   });
   db.keuringen.filter(k => !mid || k.machineId === mid).forEach(k => {
     const info = mInfo(k), regels = (k.hist || []).length ? k.hist : [{ t: 0, tot: k.tot, door: "", opm: "" }];
-    regels.forEach((h, i) => rij.push({ n: info[0], t: h.t, c: [...info, h.t ? csvDatum(h.t) : "", "Keuring", k.soort + (h.opm ? ": " + h.opm : ""), "", h.door, (i === 0 ? (kStatus(k).lvl === "late" ? "Verlopen, was geldig tot " : "Geldig tot ") : "Was geldig tot ") + csvDatum(h.tot), "", "", ""] }));
+    regels.forEach((h, i) => rij.push({ n: csvSleutel(info), t: h.t, c: [...info, h.t ? csvDatum(h.t) : "", "Keuring", k.soort + (h.opm ? ": " + h.opm : ""), "", h.door, (i === 0 ? (kStatus(k).lvl === "late" ? "Verlopen, was geldig tot " : "Geldig tot ") : "Was geldig tot ") + csvDatum(h.tot), "", "", ""] }));
   });
   rij.sort((a, b) => a.n.localeCompare(b.n, "nl", { numeric: true }) || a.t - b.t);
   return [kop, ...rij.map(r => r.c)].map(r => r.map(csvCel).join(";")).join("\r\n") + "\r\n";
@@ -1215,9 +1523,10 @@ function prMachine(m, nu) {
     const k = x.status === "klaar";
     return `<tr><td class="nw">${csvDatum(x.t)}${x.uren != null ? "<br>" + nf(x.uren) + " u" : ""}</td><td>${esc(x.tekst)}${x.prio === "dringend" && !k ? " <b>(dringend)</b>" : ""}</td><td>${esc(x.door)}</td><td class="nw">${k ? "Opgelost" : "<b>Nog open</b>"}</td><td class="nw">${k ? (x.tKlaar ? csvDatum(x.tKlaar) : "") + (x.klaarDoor ? "<br>" + esc(x.klaarDoor) : "") : ""}</td></tr>`;
   }).join("")}</tbody></table>` : '<p class="pr-leeg">Geen storingen gemeld.</p>';
-  return `<section class="pr-pag"><h1>${esc(m.naam)}</h1><p class="pr-sub">${esc([m.type, catOf(m)].filter(Boolean).join(" · "))}</p>
+  return `<section class="pr-pag"><h1>${m.nr ? esc(m.nr) + " · " : ""}${esc(m.naam)}</h1><p class="pr-sub">${esc([m.type, catOf(m), m.model].filter(Boolean).join(" · "))}</p>
     <dl class="pr-kv">
       ${m.kenteken ? `<dt>Kenteken</dt><dd>${esc(m.kenteken)}</dd>` : ""}
+      ${m.bouwjaar ? `<dt>Bouwjaar</dt><dd>${esc(m.bouwjaar)}</dd>` : ""}
       ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur" : "onbekend"}</dd>` : ""}
       <dt>Interval</dt><dd>${esc(ivTxt(m.interval || {}))}</dd>
       <dt>Laatste beurt</dt><dd>${lo ? csvDatum(lo.t) + (lo.uren != null ? " bij " + nf(lo.uren) + " uur" : "") : "nog niet vastgelegd"}</dd>
@@ -1229,7 +1538,7 @@ function prMachine(m, nu) {
 }
 function afdrukken(mid) {
   const nu = csvDatum(Date.now()) + " " + fmtTijd(Date.now());
-  const ms = mid ? [mach(mid)].filter(Boolean) : CATS.flatMap(c => db.machines.filter(m => catOf(m) === c).sort((a, b) => a.naam.localeCompare(b.naam, "nl", { numeric: true })));
+  const ms = mid ? [mach(mid)].filter(Boolean) : CATS.flatMap(c => db.machines.filter(m => catOf(m) === c).sort(opNr));
   let html = "";
   if (!mid) {
     const vrij = db.meldingen.filter(x => !x.machineId).sort((a, b) => b.t - a.t);
@@ -1239,7 +1548,7 @@ function afdrukken(mid) {
         const lo = lastOh(m.id);
         return `<tr><td>${esc(m.naam)}</td><td class="nw">${s.lvl === "late" ? "<b>Te laat</b>" : "Binnenkort"}</td><td>${esc(s.txt)}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) + (lo.uren != null ? " · " + nf(lo.uren) + " u" : "") : ""}</td></tr>`;
       }).join("")}</tbody></table>` : '<p class="pr-leeg">Er is niks aan de beurt.</p>';
-    const zonder = ms.filter(m => !lastOh(m.id)); // zelfde als "Laatste beurt invullen" in de app
+    const zonder = ms.filter(beurtNodig); // zelfde als "Laatste beurt invullen" in de app
     const alleK = db.keuringen.filter(k => mach(k.machineId)).sort((a, b) => a.tot - b.tot);
     const kHTML = alleK.length ? `<h2>Keuringen</h2><table><thead><tr><th>Machine</th><th>Keuring</th><th>Geldig tot</th><th>Status</th></tr></thead><tbody>${alleK.map(k => { const x = kStatus(k);
         return `<tr><td>${esc(mach(k.machineId).naam)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(k.tot)}</td><td>${x.lvl === "ok" ? "Geldig" : "<b>" + KL[x.lvl] + "</b> · " + esc(x.txt)}</td></tr>`; }).join("")}</tbody></table>` : "";
@@ -1248,21 +1557,21 @@ function afdrukken(mid) {
       <h2>Onderhoud aan de beurt</h2>${dueHTML}
       ${zonder.length ? `<p class="pr-leeg" style="margin-top:4pt">Bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"} is de laatste beurt nog niet ingevuld. Op de volgende pagina staat een invullijst.</p>` : ""}
       <h2>Alle machines</h2>
-      <table><thead><tr><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
+      <table><thead><tr><th>Nr</th><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
         const s = ohStatus(m), lo = lastOh(m.id), open = db.meldingen.filter(x => x.machineId === m.id && x.status !== "klaar").length;
-        return `<tr><td>${esc(m.naam)}${m.kenteken ? ` <span class="pr-k">${esc(m.kenteken)}</span>` : ""}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
+        return `<tr><td class="nw">${esc(m.nr || "")}</td><td>${esc(m.naam)}${m.kenteken ? ` <span class="pr-k">${esc(m.kenteken)}</span>` : ""}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
       }).join("")}</tbody></table>
       ${vrij.length ? `<h2>Overig (niet in de lijst)</h2><table><thead><tr><th>Gemeld</th><th>Wat</th><th>Storing</th><th>Status</th></tr></thead><tbody>${vrij.map(x => `<tr><td class="nw">${csvDatum(x.t)}</td><td>${esc(mName(x))}</td><td>${esc(x.tekst)}</td><td class="nw">${x.status === "klaar" ? "Opgelost" + (x.tKlaar ? " " + csvDatum(x.tKlaar) : "") : "<b>Nog open</b>"}</td></tr>`).join("")}</tbody></table>` : ""}
       <p class="pr-voet">Werkplaatsbord · momentopname van ${nu}. Hierna een pagina per machine waar onderhoud of storingen bij staan.</p></section>`;
   }
   // Bij alles: alleen een eigen pagina voor machines waar iets bij staat (de rest staat in het overzicht)
   if (!mid) {
-    const zonder = ms.filter(m => !lastOh(m.id));
+    const zonder = ms.filter(beurtNodig);
     if (zonder.length) html += `<section class="pr-pag pr-invul"><h1>Laatste beurt invullen</h1>
       <p class="pr-sub">Vul in wat je weet (ongeveer is goed) en zet het daarna in de app: Machines › Laatste beurt invullen › Opslaan, volgende. Zelfde volgorde als hier.</p>
       <table><thead><tr><th>Machine</th><th>Uren nu</th><th>Datum laatste beurt</th><th>Uren toen</th><th>Wat gedaan</th><th>Elke … uur</th><th>Elke … mnd</th></tr></thead><tbody>${zonder.map(m => {
         const leeg = m.urenteller ? "" : "–", iv = m.interval || {};
-        return `<tr><td>${esc(m.naam)}<br><span class="pr-k">${esc(catOf(m))}</span></td><td>${m.urenteller ? (m.uren != null ? `<span class="pr-k">${nf(m.uren)}?</span>` : "") : "–"}</td><td></td><td>${leeg}</td><td></td><td>${m.urenteller ? (iv.uren ? nf(iv.uren) : "") : "–"}</td><td>${iv.maanden || ""}</td></tr>`;
+        return `<tr><td>${esc(m.naam)}<br><span class="pr-k">${m.nr ? esc(m.nr) + " · " : ""}${esc(catOf(m))}</span></td><td>${m.urenteller ? (m.uren != null ? `<span class="pr-k">${nf(m.uren)}?</span>` : "") : "–"}</td><td></td><td>${leeg}</td><td></td><td>${m.urenteller ? (iv.uren ? nf(iv.uren) : "") : "–"}</td><td>${iv.maanden || ""}</td></tr>`;
       }).join("")}</tbody></table>
       <p class="pr-voet">Werkplaatsbord · invullijst van ${nu}</p></section>`;
   }
@@ -1398,6 +1707,7 @@ setInterval(() => { if (document.visibilityState === "visible") planSync(0); }, 
   if (tel && !los && !store.get("wpbTipWeg", false)) $("#installTip").hidden = false;
   $("#installTipWeg").onclick = () => { store.set("wpbTipWeg", true); $("#installTip").hidden = true; };
 })();
+if (!groepAan()) lijstInlezen(); // met de groep: na de eerste geslaagde sync
 setWho(); render(); statusTekst();
 neemUitnodiging();
 if (!me) instellingen();
