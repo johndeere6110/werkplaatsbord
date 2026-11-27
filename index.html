@@ -288,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 31; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 32; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -628,9 +628,11 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 6; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij
+const LIJST_VERSIE = 7; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214
 // Aanvullen per machinenummer: alleen velden die nog leeg zijn (wat iemand zelf invulde blijft staan)
-const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T234" } };
+const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T214" } };
+// Verbeteren: [veld, oude waarde, nieuwe waarde]; alleen als er nog precies de oude waarde staat
+const LIJST_VERBETER = { "0715": [["info", "Gechipt naar T234", "Gechipt naar T214"]] };
 // Per ongeluk weggehaald: terugzetten, maar alleen als het weghalen vóór dit tijdstip was (later weghalen blijft weg)
 const LIJST_TERUG = { "0715": Date.parse("2026-11-27T15:00:00Z") };
 // Uit de lijst gehaald (1424 = dubbel met 1419; 0703, 0706, 0710 = ingeruild). Al ingelezen? Dan weg, als er nog niks bij staat.
@@ -674,6 +676,11 @@ function lijstInlezen() {
   for (const [nr, velden] of Object.entries(LIJST_AANVUL)) {
     const m = db.machines.find(x => x.nr === nr); if (!m) continue;
     const bij = {}; for (const [k, v] of Object.entries(velden)) if (!m[k]) bij[k] = v;
+    if (Object.keys(bij).length) { wijzig("machine", Object.assign({}, m, bij)); veranderd = true; }
+  }
+  for (const [nr, lijstje] of Object.entries(LIJST_VERBETER)) {
+    const m = db.machines.find(x => x.nr === nr); if (!m) continue;
+    const bij = {}; for (const [k, oud, nieuw] of lijstje) if (m[k] === oud) bij[k] = nieuw;
     if (Object.keys(bij).length) { wijzig("machine", Object.assign({}, m, bij)); veranderd = true; }
   }
   for (const nr of LIJST_VERVALLEN) {
