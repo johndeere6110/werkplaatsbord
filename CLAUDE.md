@@ -13,9 +13,11 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
   uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, chassis, info (vrije tekst), archief (ingeruild: datum of tekst; leeg = in gebruik), kenteken, cat, urenteller, uren,
   interval {uren, maanden}}; onderhoud
-  {id o_..., machineId, t, uren, wat, door}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
+  {id o_... (uit Excel: ox...), machineId, t, uren, wat, door, soort (leeg = beurt, "controle", "reparatie"; reparatie telt niet
+  als laatste beurt)}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
   (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm, bestanden [{id d_..., naam}]}]}; de nieuwste hist bepaalt tot. De startmachines hebben vaste id's v1..v17. De machinelijst van de werkplaats (MACHINELIJST in index.html, 246 stuks; LIJST_VERVALLEN = weggehaalde nummers; LIJST_TERUG = per ongeluk weggehaald, terugzetten als dat vóór het tijdstip was; LIJST_AANVUL = lege velden aanvullen; LIJST_VERBETER = [veld, oud, nieuw] als er nog precies oud staat; LIJST_ARCHIEF = naar het archief, ook terugzetten als weggehaald).
-  Machines met archief staan alleen in het tabje Ingeruild (niet in Alles, zoeken, melden, aan de beurt, PDF, ochtendmelding
+  Onderhoudsschema's uit Excel: excel-import.json, één keer per apparaat ingelezen (excelInlezen, wpbExcel = EXCEL_VERSIE),
+  na de machinelijst; ingeruilde machines zonder nummer krijgen id x_.... Machines met archief staan alleen in het tabje Ingeruild (niet in Alles, zoeken, melden, aan de beurt, PDF, ochtendmelding
   wordt één keer per apparaat ingelezen (lijstInlezen, sleutel wpbLijst = LIJST_VERSIE): bestaande machines krijgen via
   kenteken/LIJST_KOPPEL/naam alleen nr, model, bouwjaar en lege kentekens; nieuwe krijgen id n<nr> met g = 1. Met groep pas
   na een geslaagde sync. Categorieën: CATS; UREN_CATS krijgen standaard een urenteller. meta[id] = {s: soort, g:

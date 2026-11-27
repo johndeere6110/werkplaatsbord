@@ -292,7 +292,7 @@ function dagelijks() {
     let d; try { d = JSON.parse(String(r[7])); } catch (x) { continue; }
     const s = String(r[1]);
     if (s === 'machine') machines[d.id] = d;
-    else if (s === 'onderhoud') (onderhoud[d.machineId] = onderhoud[d.machineId] || []).push(d);
+    else if (s === 'onderhoud' && d.soort !== 'reparatie') (onderhoud[d.machineId] = onderhoud[d.machineId] || []).push(d); // reparatie telt niet als beurt
     else if (s === 'keuring') keuringen.push(d);
   }
   const props = PropertiesService.getScriptProperties(), vandaag = dagNr_(Date.now()), nieuw = {}, regels = [];

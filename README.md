@@ -19,6 +19,9 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   Machines die er al in stonden hielden hun naam, storingen en beurten.
 - Tabjes per categorie: Trekkers, Kranen, Shovels, Auto's, Wagens, Werktuigen, Aanbouwdelen, Winterdienst, Klein
   materieel, Overig. Binnen een categorie op machinenummer.
+- **Onderhoudsgeschiedenis uit Excel**: de oude onderhoudsschema's (beurten, reparaties, jaarcontroles, chassisnummers)
+  staan erin, met "Excel" als door. Een **reparatie** telt niet als beurt; bij Onderhoud gedaan kies je Beurt, Controle of
+  Reparatie.
 - **Ingeruild / niet meer in gebruik**: vinkje bij Bewerken. De machine verdwijnt uit de lijsten, het zoeken, storing
   melden en de meldingen, maar blijft met zijn geschiedenis in het tabje **Ingeruild** (achteraan). Vinkje uit = terug.
 - **Zoeken** (bovenaan in Machines en bij storing melden): op nummer, naam, soort, merk/type of kenteken (met of zonder

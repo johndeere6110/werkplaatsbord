@@ -121,6 +121,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .chip.open,.chip.none,.chip.onb{background:var(--surface-2);color:var(--muted)}
 .chip.klaar,.chip.ok,.chip.oh{background:var(--done-soft);color:var(--done)}
 .chip.oud,.chip.soon{background:var(--old-soft);color:var(--old)}
+.chip.rep{background:var(--busy-soft);color:var(--busy)}
 .chip.dringend,.chip.late{background:var(--urgent-soft);color:var(--urgent)}
 .actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;position:relative;z-index:1}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 14px;font-weight:500;font-size:.94rem;min-height:42px}
@@ -290,7 +291,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 33; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 35; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -410,6 +411,10 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["0128", "Spitmachine Celli 175", "", "Spitmachine", "Celli 175", "", 5, 0],
   ["0129", "Kilverbak AP (laser) SM", "", "Kilverbak", "AP (laser) SM", "", 5, 0],
   ["0130", "Cultivator Evers", "", "Cultivator", "Evers", "", 5, 0],
+  ["0131", "Messenfrees Imants JNC Z170 (2008)", "", "Messenfrees", "Imants JNC Z170", "2008", 5, 0],
+  ["0132", "Messenfrees Kuhn EL162", "", "Messenfrees", "Kuhn EL162", "2019", 5, 0],
+  ["0133", "Overtopfrees Struik Varix 3000", "", "Overtopfrees", "Struik Varix 3000", "2021", 5, 0],
+  ["0134", "Kilverbak AP smalspoor", "", "Kilverbak", "AP smalspoor", "2013", 5, 0],
   ["0200", "Balenpers New Holland 8090", "", "Balenpers", "New Holland 8090", "", 5, 1],
   ["0201", "Wikkelaar Mc Hale 998", "LBF-99-D", "Wikkelaar", "Mc Hale 998", "16-2-2007", 5, 0],
   ["0202", "Voorlader Mailleux mx 120", "", "Voorlader", "Mailleux mx 120", "", 6, 0],
@@ -428,6 +433,7 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["0218", "Kuilverdeler VDW", "", "Kuilverdeler", "VDW", "", 5, 0],
   ["0219", "Silagewagen 2", "LGL-59-P", "Silagewagen", "Kaweco Radium 45", "28-5-2020", 4, 0],
   ["0220", "Silagewagen 1", "LGL-58-P", "Silagewagen", "Kaweco Radium 45", "20-5-2020", 4, 0],
+  ["0221", "Kuilverdeler Holaras Jumbo", "", "Kuilverdeler", "Holaras Jumbo H-S/SHB", "2007", 5, 0],
   ["0300", "Maaikorf Herder (3m) 1404", "", "Maaikorf", "Herder (3m) 1404", "", 5, 0],
   ["0301", "Maaikorf Herder (2,5) KX121", "", "Maaikorf", "Herder (2,5) KX121", "", 5, 0],
   ["0302", "Maaikorf Herder (3,0) ec140", "", "Maaikorf", "Herder (3,0) ec140", "", 5, 0],
@@ -449,11 +455,13 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["0318", "Snipperwagen Veenhuis", "", "Snipperwagen", "Veenhuis", "", 4, 0],
   ["0319", "Armmaaier Mc Connell kleine armmaaier", "", "Armmaaier", "Mc Connell klein", "", 5, 0],
   ["0320", "McConnel 2023", "", "Maaiarm", "McConnel PA4330", "", 5, 0],
+  ["0321", "Takkenversnipperaar Schliesing 550ZX", "", "Takkenversnipperaar", "Schliesing 550ZX", "2021", 5, 0],
   ["0400", "Mestverspreider Strautmann VS 1204", "LBG-73-S", "Mestverspreider", "Strautmann VS 1204", "", 5, 0],
   ["0401", "Mengmesttank Kaweco double twin shift", "", "Mengmesttank", "Kaweco double twin shift", "", 5, 0],
   ["0402", "Mesttank Zunhammer", "", "Mesttank", "Zunhammer MIKE 15,5 PU", "5-1-2021", 5, 0],
   ["0403", "Vacuümwagen Manstrak 7000", "LPS-70-X", "Vacuümwagen", "Manstrak 7000", "30-6-1997", 5, 0],
   ["0404", "Mestmixer Schrijver", "", "Mestmixer", "Schrijver", "", 5, 0],
+  ["0405", "Bouwlandbemester Slootsmid", "", "Bouwlandbemester", "Slootsmid", "2002", 5, 0],
   ["0500", "Doorzaaimachine Vredo", "", "Doorzaaimachine", "Vredo", "", 5, 0],
   ["0501", "Maiszaaier Kverneland", "", "Maiszaaier", "Kverneland", "", 5, 0],
   ["0502", "Zaaimachine Kongskilde Demeter 3000", "", "Zaaimachine", "Kongskilde Demeter 3000", "", 5, 0],
@@ -627,7 +635,9 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["1422", "Oprijwagen 3-asser", "08-WS-TP", "Oprijwagen", "Hapert", "31-7-2018", 4, 0],
   ["1423", "Iveco", "", "Vrachtwagen", "Iveco kipper", "27-1-2022", 3, 0],
   ["1425", "Goweil ronde pers", "LLR-20-T", "Ronde balenpers", "Goweil", "13-7-2017", 5, 1],
-  ["1426", "Kawasaki quad", "", "Quad", "Kawasaki", "2008", 9, 0]
+  ["1426", "Kawasaki quad", "", "Quad", "Kawasaki", "2008", 9, 0],
+  ["1427", "Opel Vivaro", "1-VLT-25", "Bus", "Opel Vivaro", "2011", 3, 0],
+  ["1428", "Volkswagen Transporter", "6-VLZ-37", "Bus", "Volkswagen Transporter", "2011", 3, 0]
 ];
 // Machines die er al in stonden (eigen naam van de jongens, of de oude startnaam) -> machinenummer
 const LIJST_KOPPEL = {
@@ -638,7 +648,7 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 8; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief
+const LIJST_VERSIE = 9; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief; 9: machines uit de Excel-schema's erbij, 0107 weg
 // Aanvullen per machinenummer: alleen velden die nog leeg zijn (wat iemand zelf invulde blijft staan)
 const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T214" } };
 // Verbeteren: [veld, oude waarde, nieuwe waarde]; alleen als er nog precies de oude waarde staat
@@ -648,7 +658,7 @@ const LIJST_TERUG = { "0715": Date.parse("2026-11-27T15:00:00Z") };
 // Uit de lijst gehaald (1424 = dubbel met 1419; 0703, 0706, 0710 = ingeruild). Al ingelezen? Dan weg, als er nog niks bij staat.
 const LIJST_VERVALLEN = ["1424"];
 // Ingeruild: naar het tabje Ingeruild (bestaat hij niet meer, of is hij weggehaald, dan komt hij daar terug)
-const LIJST_ARCHIEF = { "0703": "ingeruild", "0706": "ingeruild", "0710": "ingeruild" };
+const LIJST_ARCHIEF = { "0703": "ingeruild", "0706": "ingeruild", "0710": "ingeruild", "0107": "weg" };
 // Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
 // sync, zodat het apparaat ziet wat er al is. Bestaande machines houden hun naam en alles wat erbij staat; ze krijgen
 // alleen nummer, merk/type, bouwjaar en (als dat leeg is) kenteken. Nieuwe machines krijgen id n<nr> met g = 1: wat al in
@@ -712,6 +722,58 @@ function lijstInlezen() {
   return veranderd;
 }
 
+// Eén keer per apparaat (wpbExcel): de onderhoudsschema's uit Excel (excel-import.json) inlezen. Zelfde opzet als de
+// machinelijst: vaste id's (ox...) met g = 1, dus nooit dubbel en wat al in de groep staat wint. Een beurt die al binnen
+// 14 dagen in de app staat wordt overgeslagen. Chassisnummer en info alleen aanvullen.
+const EXCEL_VERSIE = 1;
+let excelBezig = false;
+function zetLokaal(soort, obj) { // met groep: gewoon wijzigen; zonder groep: niet "nieuwer" maken dan wat later uit de groep komt
+  if (groepAan()) return wijzig(soort, obj);
+  const arr = db[LIJST[soort]], i = arr.findIndex(o => o.id === obj.id);
+  if (i < 0) arr.push(obj); else arr[i] = obj;
+  if (!meta[obj.id]) meta[obj.id] = { s: soort, g: 1 };
+}
+async function excelInlezen() {
+  if (excelBezig || store.get("wpbExcel", 0) >= EXCEL_VERSIE) return false;
+  excelBezig = true;
+  try {
+    const res = await fetch("excel-import.json", { cache: "no-store" });
+    if (!res.ok) return false;
+    const d = await res.json(); if (!d || !Array.isArray(d.records)) return false;
+    for (const [xid, a] of Object.entries(d.archief || {})) {
+      if (meta[xid] || db.machines.some(m => m.id === xid)) continue;
+      db.machines.push({ id: xid, nr: "", naam: a.naam, type: a.type, model: a.model, cat: CATS[a.cat] || "Overig", urenteller: false, uren: null, interval: {}, archief: a.archief });
+      meta[xid] = { s: "machine", g: 1 }; if (groepAan()) dirty.add(xid);
+    }
+    const mVan = k => k.startsWith("x_") ? mach(k) : db.machines.find(m => m.nr === k);
+    let n = 0; const laatste = {};
+    for (const r of d.records) {
+      const m = mVan(r.nr), t = Date.parse(r.datum + "T12:00:00");
+      if (!m || isNaN(t) || meta[r.id] || db.onderhoud.some(o => o.id === r.id)) continue;
+      if (r.soort === "beurt" && db.onderhoud.some(o => o.machineId === m.id && !o.soort && !String(o.id).startsWith("ox") && Math.abs(o.t - t) < 14 * DAY)) continue;
+      const o = { id: r.id, machineId: m.id, t, uren: r.uren ?? null, wat: r.wat + (r.km ? ` (km-stand ${nf(r.km)})` : ""), door: "Excel" };
+      if (r.soort === "jaarcontrole") o.soort = "controle"; else if (r.soort === "reparatie") o.soort = "reparatie";
+      db.onderhoud.push(o); meta[r.id] = { s: "onderhoud", g: 1 }; if (groepAan()) dirty.add(r.id); n++;
+      if (r.uren && r.soort !== "jaarcontrole" && (!laatste[m.id] || t > laatste[m.id].t)) laatste[m.id] = { t, uren: r.uren };
+    }
+    for (const [k, g] of Object.entries(d.gegevens || {})) {
+      const m = mVan(k); if (!m) continue;
+      const bij = {};
+      if (g.chassis && !m.chassis) bij.chassis = g.chassis;
+      if (g.info && !(m.info || "").includes(g.info)) bij.info = m.info ? m.info + "\n" + g.info : g.info;
+      if (Object.keys(bij).length) zetLokaal("machine", Object.assign({}, m, bij));
+    }
+    // urenstand = die van de nieuwste regel met uren uit Excel, als die hoger is (niet bij 1104: daar is Excel teller + 370)
+    for (const [mid, l] of Object.entries(laatste)) {
+      const m = mach(mid);
+      if (m && m.urenteller && m.nr !== "1104" && (m.uren == null || l.uren > m.uren)) zetLokaal("machine", Object.assign({}, m, { uren: l.uren }));
+    }
+    store.set("wpbExcel", EXCEL_VERSIE); bewaar(); planSync(); render();
+    if (n) toast(n + " regels uit de Excel-schema's ingelezen");
+    return true;
+  } catch (e) { return false; } finally { excelBezig = false; }
+}
+
 /* ---------- hulpjes ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -721,7 +783,8 @@ const mName = x => x.machineId ? (mach(x.machineId)?.naam || "Onbekende machine"
 const nrNaam = (m, naam) => (m && m.nr ? `<span class="nr">${esc(m.nr)}</span>` : "") + esc(m ? m.naam : naam);
 // Zoeken in machines: alle woorden moeten erin voorkomen (nummer, naam, soort, merk/type, kenteken met of zonder streepjes)
 const zoekTekst = m => [m.nr, m.naam, m.type, m.model, m.chassis, m.kenteken, (m.kenteken || "").replace(/-/g, ""), catOf(m)].filter(Boolean).join(" ").toLowerCase();
-const zoekPast = (m, q) => { const t = zoekTekst(m); return String(q || "").toLowerCase().split(/\s+/).filter(Boolean).every(w => t.includes(w) || t.includes(w.replace(/-/g, ""))); };
+// Alleen cijfers (bv. "1105" of "07"): begin van het machinenummer, of in naam, merk/type of kenteken (niet in het chassisnummer)
+const zoekPast = (m, q) => { const t = zoekTekst(m); return String(q || "").toLowerCase().split(/\s+/).filter(Boolean).every(w => /^\d+$/.test(w) ? (m.nr || "").startsWith(w) || [m.naam, m.model, (m.kenteken || "").replace(/-/g, "")].join(" ").toLowerCase().includes(w) : t.includes(w) || t.includes(w.replace(/-/g, ""))); };
 const nrVan = x => nrNaam(x.machineId ? mach(x.machineId) : null, mName(x));
 const nf = n => Number(n).toLocaleString("nl-NL");
 function ago(ts) { const d = Math.floor((Date.now() - ts) / DAY); if (d < 1) return "vandaag"; if (d < 2) return "gisteren"; if (d < 14) return d + " dagen"; if (d < 60) return Math.floor(d / 7) + " weken"; return Math.floor(d / 30) + " maanden"; }
@@ -748,7 +811,9 @@ const kVerloopt = ms => { const ids = new Set(ms.map(m => m.id)); return db.keur
 const addMonths = (ts, n) => { const d = new Date(ts); d.setMonth(d.getMonth() + n); return d.getTime(); };
 // "Laatste beurt invullen": alleen machines met een urenteller of een interval (niet elke kraanbak of kettingzaag)
 const beurtNodig = m => !!(m.urenteller || (m.interval && (m.interval.uren || m.interval.maanden))) && !lastOh(m.id);
-const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid).sort((a, b) => b.t - a.t)[0];
+// Onderhoud: soort leeg = beurt, "controle" (jaarcontrole), "reparatie" (telt niet als beurt)
+const OHSOORT = { "": "Onderhoud", controle: "Controle", reparatie: "Reparatie" };
+const lastOh = mid => db.onderhoud.filter(o => o.machineId === mid && o.soort !== "reparatie").sort((a, b) => b.t - a.t)[0];
 const numOrNull = v => { v = String(v ?? "").replace(/\./g, "").replace(",", ".").trim(); if (v === "") return null; const n = Math.round(Number(v)); return isNaN(n) ? null : n; };
 
 function catOf(m) {
@@ -913,6 +978,7 @@ async function syncNu() {
     sync.laatst = Date.now(); store.set("wpbLaatst", sync.laatst); sync.fout = "";
     pushControle();
     if (lijstInlezen()) { veranderd = true; nogEens = true; }
+    if (store.get("wpbLijst", 0) >= LIJST_VERSIE) excelInlezen(); // na de machinelijst (machines moeten er zijn)
     if (veranderd) render();
   } catch (e) {
     sync.fout = String(e && e.message) === "code" ? "Groepscode klopt niet" : (navigator.onLine ? "Bijwerken lukte niet, probeert het zo opnieuw" : "Geen bereik, probeert het later opnieuw");
@@ -1246,7 +1312,7 @@ function machineDetail(mid) {
   const s = ohStatus(m), lo = lastOh(mid), ks = keuringenVan(mid);
   const tl = [...ms.map(x => ({ t: x.t, k: "m", x })), ...db.onderhoud.filter(o => o.machineId === mid).map(o => ({ t: o.t, k: "o", x: o }))].sort((a, b) => b.t - a.t);
   const tlHTML = tl.length ? tl.map(e => e.k === "o"
-    ? `<button type="button" class="h hb" data-oh="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div><span class="go" aria-hidden="true">›</span></button>`
+    ? `<button type="button" class="h hb" data-oh="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip ${e.x.soort === "reparatie" ? "rep" : "oh"}">${OHSOORT[e.x.soort || ""]}</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div><span class="go" aria-hidden="true">›</span></button>`
     : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
     : '<p class="empty">Nog niks vastgelegd.</p>';
   openSheet(`${head(nrNaam(m))}
@@ -1303,21 +1369,28 @@ function ohForm(mid, oid) {
       <div class="field"><label for="od">Datum</label><input id="od" type="date" value="${o ? isoDag(o.t) : today}" max="${today}"></div>
       ${m.urenteller ? `<div class="field"><label for="ou">Urenstand</label><input id="ou" type="text" inputmode="numeric" value="${o ? o.uren ?? "" : m.uren ?? ""}"></div>` : "<div></div>"}
     </div>
+    <div class="field"><span class="lbl">Soort</span>
+      <div class="prio" id="osrt" style="grid-template-columns:repeat(3,1fr)">${["", "controle", "reparatie"].map(k => `<button type="button" data-s="${k}" aria-pressed="${(o ? o.soort || "" : "") === k}">${k === "" ? "Beurt" : OHSOORT[k]}</button>`).join("")}</div>
+      <p class="hint">Een reparatie telt niet als beurt voor de volgende onderhoudsbeurt.</p></div>
     <div class="field"><label for="ow">Wat is er gedaan?</label><textarea id="ow" placeholder="Bijv. 500-urenbeurt: olie, filters, vetten">${esc(o ? o.wat : "")}</textarea></div>
     <div class="field"><label for="odoor">Gedaan door</label><input id="odoor" type="text" value="${esc(o ? o.door : me)}"></div>
     <p class="err" id="err" hidden></p>
     <button class="btn primary groot" id="oOk">Opslaan</button>
     ${o ? '<button class="btn warn" id="oDel">Beurt verwijderen</button>' : ""}`, ov => {
+    ov.querySelectorAll("#osrt button").forEach(b => b.onclick = () => ov.querySelectorAll("#osrt button").forEach(x => x.setAttribute("aria-pressed", x === b)));
     ov.querySelector("#oOk").onclick = () => {
       const d = ov.querySelector("#od").value, wat = ov.querySelector("#ow").value.trim(), door = ov.querySelector("#odoor").value.trim();
       const u = m.urenteller ? numOrNull(ov.querySelector("#ou").value) : null;
       const err = ov.querySelector("#err"); const fail = t => { err.textContent = t; err.hidden = false; };
       if (!d) return fail("Kies een datum.");
-      if (m.urenteller && u == null && !(o && o.uren == null)) return fail("Vul de urenstand in, anders kan de volgende beurt niet berekend worden.");
+      if (m.urenteller && u == null && !(o && o.uren == null) && !ov.querySelector('#osrt [data-s="reparatie"][aria-pressed="true"]')) return fail("Vul de urenstand in, anders kan de volgende beurt niet berekend worden.");
       if (!door) return fail("Vul in wie het gedaan heeft.");
       if (!o && door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
       const ts = Math.min(vanDag(d), Date.now());
-      wijzig("onderhoud", Object.assign({}, o || { id: nieuwId("o_"), machineId: mid }, { t: ts, uren: u, wat: wat || "Onderhoud", door }));
+      const srt = ov.querySelector('#osrt [aria-pressed="true"]').dataset.s;
+      const n = Object.assign({}, o || { id: nieuwId("o_"), machineId: mid }, { t: ts, uren: u, wat: wat || OHSOORT[srt], door });
+      if (srt) n.soort = srt; else delete n.soort;
+      wijzig("onderhoud", n);
       bumpUren(mid, u); render(); machineDetail(mid); toast(o ? "Beurt aangepast" : "Onderhoud vastgelegd");
     };
     const del = ov.querySelector("#oDel");
@@ -1663,7 +1736,7 @@ function csvRegels(mid) {
   const kop = ["Nr", "Machine", "Categorie", "Soort", "Kenteken", "Chassisnummer", "Datum", "Wat", "Omschrijving", "Urenstand", "Door", "Status", "Hoe dringend", "Opgelost op", "Opgelost door"];
   const rij = [];
   const mInfo = x => { const m = x.machineId ? mach(x.machineId) : null; return m ? [m.nr || "", m.naam, catOf(m), m.type || "", m.kenteken || "", m.chassis || ""] : ["", mName(x), "Overig", "", "", ""]; };
-  db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: csvSleutel(mInfo(o)), t: o.t, c: [...mInfo(o), csvDatum(o.t), "Onderhoud", o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
+  db.onderhoud.filter(o => !mid || o.machineId === mid).forEach(o => rij.push({ n: csvSleutel(mInfo(o)), t: o.t, c: [...mInfo(o), csvDatum(o.t), OHSOORT[o.soort || ""], o.wat, o.uren ?? "", o.door, "Gedaan", "", "", ""] }));
   db.meldingen.filter(x => !mid || x.machineId === mid).forEach(x => {
     const klaar = x.status === "klaar";
     rij.push({ n: csvSleutel(mInfo(x)), t: x.t, c: [...mInfo(x), csvDatum(x.t), "Storing", x.tekst, x.uren ?? "", x.door, klaar ? "Opgelost" : "Nog open", x.prio === "dringend" ? "Dringend" : "Als er tijd is", klaar && x.tKlaar ? csvDatum(x.tKlaar) : "", klaar ? x.klaarDoor || "" : ""] });
@@ -1702,8 +1775,8 @@ function prMachine(m, nu) {
       return `<tr><td>${esc(k.soort)}</td><td class="nw">${csvDatum(k.tot)}</td><td class="nw">${x.lvl === "ok" ? "Geldig" : "<b>" + KL[x.lvl] + "</b>"}</td><td class="nw">${k.maanden ? "elke " + k.maanden + " mnd" : ""}</td><td>${esc(k.notitie || "")}</td></tr>`; }).join("")}</tbody></table>
       ${ksH.length ? `<table style="margin-top:6pt"><thead><tr><th>Gekeurd op</th><th>Keuring</th><th>Geldig tot</th><th>Door</th><th>Opmerking</th></tr></thead><tbody>${ksH.map(({ k, h }) => `<tr><td class="nw">${csvDatum(h.t)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(h.tot)}</td><td>${esc(h.door)}</td><td>${esc(h.opm || "")}${(h.bestanden || []).length ? ` <span class="pr-k">(rapport: ${h.bestanden.map(b => esc(b.naam)).join(", ")})</span>` : ""}</td></tr>`).join("")}</tbody></table>` : ""}`
     : "";
-  const ohT = oh.length ? `<table><thead><tr><th>Datum</th>${m.urenteller ? '<th class="r">Uren</th>' : ""}<th>Wat is er gedaan</th><th>Door</th></tr></thead><tbody>${oh.map(o =>
-    `<tr><td class="nw">${csvDatum(o.t)}</td>${m.urenteller ? `<td class="r">${o.uren != null ? nf(o.uren) : ""}</td>` : ""}<td>${esc(o.wat)}</td><td>${esc(o.door)}</td></tr>`).join("")}</tbody></table>` : '<p class="pr-leeg">Nog geen onderhoud vastgelegd.</p>';
+  const ohT = oh.length ? `<table><thead><tr><th>Datum</th>${m.urenteller ? '<th class="r">Uren</th>' : ""}<th>Soort</th><th>Wat is er gedaan</th><th>Door</th></tr></thead><tbody>${oh.map(o =>
+    `<tr><td class="nw">${csvDatum(o.t)}</td>${m.urenteller ? `<td class="r">${o.uren != null ? nf(o.uren) : ""}</td>` : ""}<td class="nw">${OHSOORT[o.soort || ""]}</td><td>${esc(o.wat)}</td><td>${esc(o.door)}</td></tr>`).join("")}</tbody></table>` : '<p class="pr-leeg">Nog geen onderhoud vastgelegd.</p>';
   const stT = st.length ? `<table><thead><tr><th>Gemeld</th><th>Storing</th><th>Door</th><th>Status</th><th>Opgelost</th></tr></thead><tbody>${st.map(x => {
     const k = x.status === "klaar";
     return `<tr><td class="nw">${csvDatum(x.t)}${x.uren != null ? "<br>" + nf(x.uren) + " u" : ""}</td><td>${esc(x.tekst)}${x.prio === "dringend" && !k ? " <b>(dringend)</b>" : ""}</td><td>${esc(x.door)}</td><td class="nw">${k ? "Opgelost" : "<b>Nog open</b>"}</td><td class="nw">${k ? (x.tKlaar ? csvDatum(x.tKlaar) : "") + (x.klaarDoor ? "<br>" + esc(x.klaarDoor) : "") : ""}</td></tr>`;
@@ -1901,7 +1974,7 @@ setInterval(() => { if (document.visibilityState === "visible") planSync(0); }, 
   if (tel && !los && !store.get("wpbTipWeg", false)) $("#installTip").hidden = false;
   $("#installTipWeg").onclick = () => { store.set("wpbTipWeg", true); $("#installTip").hidden = true; };
 })();
-if (!groepAan()) lijstInlezen(); // met de groep: na de eerste geslaagde sync
+if (!groepAan()) { lijstInlezen(); excelInlezen(); } // met de groep: na de eerste geslaagde sync
 setWho(); render(); statusTekst();
 neemUitnodiging();
 if (!me) instellingen();
