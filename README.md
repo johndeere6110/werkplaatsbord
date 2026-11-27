@@ -15,7 +15,7 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   verplaatsen naar het andere tabblad of **Verwijderen** (twee keer tikken).
 
 ## Machines
-- De machinelijst van de werkplaats (248 machines, met machinenummer, kenteken, merk/type en bouwjaar) staat erin.
+- De machinelijst van de werkplaats (246 machines, met machinenummer, kenteken, merk/type en bouwjaar) staat erin.
   Machines die er al in stonden hielden hun naam, storingen en beurten.
 - Tabjes per categorie: Trekkers, Kranen, Shovels, Auto's, Wagens, Werktuigen, Aanbouwdelen, Winterdienst, Klein
   materieel, Overig. Binnen een categorie op machinenummer.

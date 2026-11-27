@@ -288,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 30; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 31; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -473,14 +473,11 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["0700", "Valtra A93", "TBN-21-Z", "Trekker", "Valtra A93", "8-2-2012", 0, 1],
   ["0701", "New Holland T7.245", "TKN-27-P", "Trekker", "New Holland T7.245", "9-1-2018", 0, 1],
   ["0702", "Valtra N141", "TDH-25-K", "Trekker", "Valtra N141", "30-6-2007", 0, 1],
-  ["0703", "Valtra T214", "TDG-08-R", "Trekker", "Valtra T214", "21-2-2017", 0, 1],
   ["0704", "Valtra N174 A", "TBN-51-Z", "Trekker", "Valtra N174", "7-2-2019", 0, 1],
   ["0705", "Valtra N154", "TZK-25-V", "Trekker", "Valtra N154", "30-6-2016", 0, 1],
-  ["0706", "Valtra T163", "TBZ-53-X", "Trekker", "Valtra T163", "30-6-2013", 0, 1],
   ["0707", "Valtra 405", "T-53-BDB", "Trekker", "Valmet 405", "3-1-2022", 0, 1],
   ["0708", "Valtra T214 Herder", "TBN-49-Z", "Trekker", "Valtra T214 Herder", "22-2-2015", 0, 1],
   ["0709", "Valtra T214 Stephan", "T-29-FHV", "Trekker", "Valtra T214", "2-2-2021", 0, 1],
-  ["0710", "New Holland T3040", "TBN-18-Z", "Trekker", "New Holland T3040", "11-2-2014", 0, 1],
   ["0711", "John Deere 3046R", "T-15-DPB", "Trekker", "John Deere 3046R", "11-1-2022", 0, 1],
   ["0712", "John Deere 3045R", "TBN-15-Z", "Trekker", "John Deere 3045R", "19-2-2018", 0, 1],
   ["0713", "Valtra T234 Jouke", "TBN-54-Z", "Trekker", "Valtra T234", "15-2-2018", 0, 1],
@@ -619,7 +616,8 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["1421", "Opel Pieter", "VNG-31-K", "Bestelauto", "Opel Vivaro", "22-3-2022", 3, 0],
   ["1422", "Oprijwagen 3-asser", "08-WS-TP", "Oprijwagen", "Hapert", "31-7-2018", 4, 0],
   ["1423", "Iveco", "", "Vrachtwagen", "Iveco kipper", "27-1-2022", 3, 0],
-  ["1425", "Goweil ronde pers", "LLR-20-T", "Ronde balenpers", "Goweil", "13-7-2017", 5, 1]
+  ["1425", "Goweil ronde pers", "LLR-20-T", "Ronde balenpers", "Goweil", "13-7-2017", 5, 1],
+  ["1426", "Kawasaki quad", "", "Quad", "Kawasaki", "2008", 9, 0]
 ];
 // Machines die er al in stonden (eigen naam van de jongens, of de oude startnaam) -> machinenummer
 const LIJST_KOPPEL = {
@@ -630,13 +628,13 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 5; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld
+const LIJST_VERSIE = 6; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij
 // Aanvullen per machinenummer: alleen velden die nog leeg zijn (wat iemand zelf invulde blijft staan)
 const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T234" } };
 // Per ongeluk weggehaald: terugzetten, maar alleen als het weghalen vóór dit tijdstip was (later weghalen blijft weg)
 const LIJST_TERUG = { "0715": Date.parse("2026-11-27T15:00:00Z") };
-// Uit de lijst gehaald (dubbel: 1424 Citroën ë Joost = 1419 ë-Berlingo VVB-09-F). Al ingelezen? Dan weg, als er nog niks bij staat.
-const LIJST_VERVALLEN = ["1424"];
+// Uit de lijst gehaald (1424 = dubbel met 1419; 0703, 0706, 0710 = ingeruild). Al ingelezen? Dan weg, als er nog niks bij staat.
+const LIJST_VERVALLEN = ["1424", "0703", "0706", "0710"]; // 0703/0706/0710 ingeruild
 // Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
 // sync, zodat het apparaat ziet wat er al is. Bestaande machines houden hun naam en alles wat erbij staat; ze krijgen
 // alleen nummer, merk/type, bouwjaar en (als dat leeg is) kenteken. Nieuwe machines krijgen id n<nr> met g = 1: wat al in
