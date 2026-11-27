@@ -292,7 +292,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 40; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 41; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -834,11 +834,15 @@ function ohStatus(m) {
   if (!iv.uren && !iv.maanden) return { lvl: "none", txt: "Geen onderhoudsinterval ingesteld" };
   const last = lastOh(m.id);
   if (!last) return { lvl: "onb", txt: "Laatste beurt nog niet ingevuld" };
-  let lvl = "ok"; const parts = [];
+  let lvl = "ok"; const parts = [], laat = [];
   const bump = l => { if (l === "late" || (l === "soon" && lvl === "ok")) lvl = l; };
-  if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; parts.push(r >= 0 ? `nog ${nf(r)} uur` : `${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
-  if (iv.maanden) { const d = Math.round((addMonths(last.t, iv.maanden) - Date.now()) / DAY); parts.push(d >= 0 ? `over ${span(d)}` : `${span(-d)} te laat`); bump(d < 0 ? "late" : d <= 30 ? "soon" : "ok"); }
-  return { lvl, txt: parts.join(" of ") || "Urenstand onbekend" }; // wat het eerst komt
+  if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; if (r >= 0) parts.push(`nog ${nf(r)} uur`); else laat.push(`${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
+  if (iv.maanden) { const d = Math.round((addMonths(last.t, iv.maanden) - Date.now()) / DAY); if (d >= 0) parts.push(`over ${span(d)}`); else laat.push(`${span(-d)} te laat (${iv.maanden} maanden om)`); bump(d < 0 ? "late" : d <= 30 ? "soon" : "ok"); }
+  // te laat: alleen wat te laat is; anders wat het eerst komt
+  let txt = laat.length ? laat.join(" en ") : parts.join(" of ") || "Urenstand onbekend";
+  // urenstand nog dezelfde als bij de beurt (en die is al even geleden): dan zegt "nog ... uur" weinig
+  if (iv.uren && m.uren != null && m.uren === last.uren && Date.now() - last.t > 30 * DAY) txt += " · urenstand niet bijgewerkt sinds de beurt";
+  return { lvl, txt };
 }
 const ivTxt = iv => [iv.uren ? `elke ${nf(iv.uren)} uur` : "", iv.maanden ? `elke ${iv.maanden} maanden` : ""].filter(Boolean).join(" of ") || "niet ingesteld";
 function bumpUren(mid, u) { const m = mach(mid); if (m && u != null && !isNaN(u) && (m.uren == null || u > m.uren)) wijzig("machine", Object.assign({}, m, { uren: u })); }
