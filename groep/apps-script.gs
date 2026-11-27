@@ -46,6 +46,7 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (!codeOk_(p.code)) return antwoord_({ ok: false, fout: 'code' });
   if (p.foto) return antwoord_(fotoLees_(String(p.foto)));
+  if (p.bestand) return antwoord_(bestandLees_(String(p.bestand)));
   if (p.berichten != null) return antwoord_(berichtenVoor_(String(p.apparaat || ''), Number(p.berichten) || 0));
   const v = blad_(BLAD, KOP).getDataRange().getValues(), rijen = [];
   for (let i = 1; i < v.length; i++) {
@@ -54,7 +55,7 @@ function doGet(e) {
     const weg = !!String(r[6]).trim();
     rijen.push({ id: String(r[0]), soort: String(r[1]), van: String(r[3]), gewijzigd: Number(r[4]) || 0, weg: weg, data: weg ? '' : String(r[7]) });
   }
-  const uit = { ok: true, rijen: rijen, soorten: SOORTEN, vapid: vapid_().pub, nu: Date.now() };
+  const uit = { ok: true, rijen: rijen, soorten: SOORTEN, vapid: vapid_().pub, bestanden: true, nu: Date.now() };
   if (p.apparaat) uit.aangemeld = !!telefoon_(String(p.apparaat)); // telefoon staat (nog) in blad "telefoons"
   return antwoord_(uit);
 }
@@ -68,6 +69,7 @@ function doPost(e) {
   lock.waitLock(20000);
   try {
     if (b.foto) return antwoord_(fotoSchrijf_(b.foto));
+    if (b.bestand) return antwoord_(bestandSchrijf_(b.bestand));
     if (b.abonnement) return antwoord_(abonneer_(String(b.apparaat || ''), b.abonnement));
     if (b.afmelden) return antwoord_(afmelden_(String(b.apparaat || '')));
     if (b.testmelding) return antwoord_(testmelding_(String(b.apparaat || '')));
@@ -137,7 +139,31 @@ function fotoSchrijf_(foto) {
   if (foto.omschrijving) f.setDescription(String(foto.omschrijving).slice(0, 500));
   return { ok: true };
 }
-// Met de hand starten vanuit de editor: foto's van verwijderde storingen naar de prullenbak van Drive
+// ---------- Keuringsrapporten (PDF of foto): <id>.pdf of <id>.jpg in dezelfde map ----------
+function bestandZoek_(map, id) {
+  const namen = [id + '.pdf', id + '.jpg'];
+  for (let i = 0; i < namen.length; i++) { const it = map.getFilesByName(namen[i]); while (it.hasNext()) { const f = it.next(); if (!f.isTrashed()) return f; } }
+  return null;
+}
+function bestandLees_(id) {
+  if (!/^d_[A-Za-z0-9_]+$/.test(id)) return { ok: false, fout: 'bestand' };
+  const f = bestandZoek_(fotoMap_(), id);
+  if (!f) return { ok: false, fout: 'geen' };
+  const blob = f.getBlob();
+  return { ok: true, id: id, data: 'data:' + (blob.getContentType() || 'application/pdf') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+}
+function bestandSchrijf_(b) {
+  const id = String(b.id || '').slice(0, 60), data = String(b.data || '');
+  const m = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,(.+)$/.exec(data);
+  if (!/^d_[A-Za-z0-9_]+$/.test(id) || !m || data.length > 15000000) return { ok: false, fout: 'bestand' };
+  const map = fotoMap_();
+  if (bestandZoek_(map, id)) return { ok: true };       // staat er al
+  const f = map.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], id + (m[1] === 'application/pdf' ? '.pdf' : '.jpg')));
+  if (b.omschrijving) f.setDescription(String(b.omschrijving).slice(0, 500));
+  return { ok: true };
+}
+
+// Met de hand starten vanuit de editor: foto's van verwijderde storingen naar de prullenbak van Drive (rapporten blijven staan)
 function fotosOpruimen() {
   const v = blad_(BLAD, KOP).getDataRange().getValues(), nodig = {};
   for (let i = 1; i < v.length; i++) {
@@ -145,7 +171,7 @@ function fotosOpruimen() {
     try { (JSON.parse(String(v[i][7])).fotos || []).forEach(function (f) { nodig[f + '.jpg'] = true; }); } catch (x) {}
   }
   const it = fotoMap_().getFiles();
-  while (it.hasNext()) { const f = it.next(); if (!nodig[f.getName()]) f.setTrashed(true); }
+  while (it.hasNext()) { const f = it.next(); if (/^f_/.test(f.getName()) && !nodig[f.getName()]) f.setTrashed(true); }
 }
 
 // ---------- Overzicht: blad "open storingen" ----------

@@ -6,7 +6,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Taal in de app: Nederlands, komma als decimaalteken, informeel en kort.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
   met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, keuringen, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
-  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt), wpbApparaat (vast id a_... per apparaat), wpbLijst (machinelijst ingelezen), wpbPush
+  wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto- en bestand-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt), wpbApparaat (vast id a_... per apparaat), wpbLijst (machinelijst ingelezen), wpbPush
   ({aan, dringend, keuring, endpoint, vapid, t}). Verander bestaande
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
@@ -14,7 +14,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, kenteken, cat, urenteller, uren,
   interval {uren, maanden}}; onderhoud
   {id o_..., machineId, t, uren, wat, door}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
-  (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm}]}. De startmachines hebben vaste id's v1..v17. De machinelijst van de werkplaats (MACHINELIJST in index.html, 246 stuks; LIJST_VERVALLEN = weggehaalde nummers)
+  (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm, bestanden [{id d_..., naam}]}]}; de nieuwste hist bepaalt tot. De startmachines hebben vaste id's v1..v17. De machinelijst van de werkplaats (MACHINELIJST in index.html, 246 stuks; LIJST_VERVALLEN = weggehaalde nummers)
   wordt één keer per apparaat ingelezen (lijstInlezen, sleutel wpbLijst = LIJST_VERSIE): bestaande machines krijgen via
   kenteken/LIJST_KOPPEL/naam alleen nr, model, bouwjaar en lege kentekens; nieuwe krijgen id n<nr> met g = 1. Met groep pas
   na een geslaagde sync. Categorieën: CATS; UREN_CATS krijgen standaard een urenteller. meta[id] = {s: soort, g:
@@ -23,6 +23,9 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   index.html (zolang die leeg is staat er een veld Web-app-URL in Instellingen). Per record wint de nieuwste g;
   weggehaald = rij met weg "verwijderd". Foto's als bestand <id>.jpg in de Drive-map "Werkplaatsbord foto's" (id in scripteigenschap FOTOMAP_ID); versturen
   als {foto: {id, data, omschrijving}}, ophalen met ?foto=<id> (data-URL terug).
+  Keuringsrapporten (PDF of foto) als d_... in dezelfde IndexedDB-store en als <id>.pdf/.jpg in dezelfde Drive-map;
+  versturen als {bestand: {id, data, omschrijving}}, ophalen met ?bestand=<id>. Alleen als GET bestanden: true geeft
+  (ouder script: bestanden blijven in wpbFotoWacht staan). fotosOpruimen raakt alleen f_-bestanden aan.
   POST met Content-Type text/plain (geen preflight). GET geeft ook soorten (SOORTEN uit het script): soorten die het
   script niet kent (ouder script: alleen storing, machine, onderhoud) houdt de app vast tot het script is bijgewerkt.
 - Pushmeldingen (Web Push, VAPID): het script ondertekent zelf (ECDSA P-256 met BigInt, k volgens RFC 6979) en stuurt een

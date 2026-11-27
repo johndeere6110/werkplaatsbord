@@ -75,6 +75,9 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
     (tot hij de app weer opent: dan meldt hij zich vanzelf opnieuw aan, als meldingen daar nog aan staan).
   - Scripteigenschappen **VAPID_D** en **VAPID_PUB** zijn het sleutelpaar. Niet aanpassen of weggooien: dan moet iedereen
     meldingen opnieuw aanzetten. **BERICHTEN** en **GEMELD** houdt het script zelf bij.
+- **Keuringsrapporten** (PDF of foto, vanaf app-versie 23) komen in dezelfde Drive-map als de foto's, als <id>.pdf; in de
+  beschrijving van het bestand staat de machine, de keuring en de datum. Met een ouder script blijven ze op de telefoon
+  tot het script is bijgewerkt. **fotosOpruimen** laat rapporten staan.
 - **Keuringen** worden pas gedeeld als het script ze kent (vanaf app-versie 15). Met een ouder script blijven ze op de
   telefoon waar ze zijn ingevuld, met een melding in het machinevenster; na het bijwerken worden ze vanzelf verstuurd.
 - **Code veranderen:** pas `GROEPSCODE` aan bij de scripteigenschappen. Iedereen moet dan de nieuwe code invullen

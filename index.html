@@ -287,7 +287,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 22; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 23; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -775,7 +775,7 @@ function maakFoto(file) {
 const isBeeld = d => typeof d === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d);
 
 /* ---------- groep (Google Sheet) ---------- */
-const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null, soorten: null, vapid: "" };
+const sync = { bezig: false, laatst: store.get("wpbLaatst", 0), fout: "", timer: null, soorten: null, vapid: "", bestanden: false };
 // Een ouder Google-script kent alleen deze soorten (en zegt niet welke het kent); keuringen blijven dan hier tot het script is bijgewerkt
 const OUDE_SOORTEN = ["storing", "machine", "onderhoud"];
 const kanDelen = soort => (sync.soorten || OUDE_SOORTEN).includes(soort);
@@ -786,7 +786,7 @@ async function vraag(body, foto) {
     const code = groep.code.trim(), opts = { signal: ac ? ac.signal : undefined, cache: "no-store" };
     const res = body
       ? await fetch(groepUrl(), Object.assign(opts, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ code, apparaat: apparaatId }, body)) }))
-      : await fetch(groepUrl() + "?code=" + encodeURIComponent(code) + (foto ? "&foto=" + encodeURIComponent(foto) : "&apparaat=" + encodeURIComponent(apparaatId)), opts);
+      : await fetch(groepUrl() + "?code=" + encodeURIComponent(code) + (foto ? (foto.startsWith("d_") ? "&bestand=" : "&foto=") + encodeURIComponent(foto) : "&apparaat=" + encodeURIComponent(apparaatId)), opts);
     return await res.json();
   } finally { if (t) clearTimeout(t); }
 }
@@ -811,8 +811,13 @@ async function syncNu() {
     // 1. foto's die nog niet in de groep staan
     let wacht = store.get("wpbFotoWacht", []);
     for (const fid of [...wacht]) {
+      const isBestand = fid.startsWith("d_");
+      if (isBestand && !sync.bestanden) continue; // ouder script kent geen rapporten: bewaren tot het is bijgewerkt
       const d = await fotoDb.get(fid).catch(() => null);
-      if (d) {
+      if (d && isBestand) {
+        const r = await vraag({ bestand: { id: fid, data: d, omschrijving: bestandOmschr(fid) } });
+        if (!r || !r.ok) throw new Error(r && r.fout || "bestand");
+      } else if (d) {
         const st = db.meldingen.find(x => (x.fotos || []).includes(fid));
         const r = await vraag({ foto: { id: fid, data: d, omschrijving: st ? [mName(st), st.tekst, st.door, fmtDate(st.t)].join(" · ") : "" } });
         if (!r || !r.ok) throw new Error(r && r.fout || "foto");
@@ -833,6 +838,8 @@ async function syncNu() {
     const kKonNiet = !kanDelen("keuring");
     sync.soorten = Array.isArray(r.soorten) ? r.soorten.map(String) : OUDE_SOORTEN;
     sync.vapid = typeof r.vapid === "string" ? r.vapid : "";
+    if (r.bestanden && !sync.bestanden && store.get("wpbFotoWacht", []).some(x => x.startsWith("d_"))) nogEens = true;
+    sync.bestanden = !!r.bestanden;
     sync.aangemeld = r.aangemeld;
     if (kKonNiet && kanDelen("keuring") && teVersturen().length) nogEens = true; // script net bijgewerkt: keuringen meteen sturen
     const opServer = new Set();
@@ -1395,6 +1402,45 @@ function machineForm(mid) {
   });
 }
 
+/* ---------- keuringsrapporten (PDF of foto) ---------- */
+// Bestand d_... in dezelfde IndexedDB-store als de foto's; in de groep als <id>.pdf/.jpg in de Drive-map.
+const isBestandData = d => typeof d === "string" && /^data:(application\/pdf|image\/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+$/.test(d);
+const MAXBESTAND = 10 * 1024 * 1024;
+function bestandOmschr(id) {
+  for (const k of db.keuringen) for (const h of k.hist || []) {
+    const b = (h.bestanden || []).find(x => x.id === id);
+    if (b) return [mach(k.machineId)?.nr, mach(k.machineId)?.naam, k.soort, "gekeurd " + csvDatum(h.t), b.naam].filter(Boolean).join(" · ");
+  }
+  return "";
+}
+async function bestandData(id) {
+  let d = await fotoDb.get(id).catch(() => null);
+  if (d) return d;
+  if (!groepAan() || !navigator.onLine) return null;
+  try { const r = await vraag(null, id); if (r && r.ok && isBestandData(r.data)) { fotoDb.set(id, r.data).catch(() => {}); return r.data; } } catch (e) {}
+  return null;
+}
+async function openBestand(b) {
+  // pc: nieuw tabblad met de pdf-viewer (meteen openen, anders houdt de browser het tegen); telefoon: downloaden/openen
+  const pc = window.matchMedia && matchMedia("(pointer: fine)").matches, w = pc && b.naam.toLowerCase().endsWith(".pdf") ? window.open("", "_blank") : null;
+  toast("Rapport laden…");
+  const d = await bestandData(b.id);
+  if (!d) { if (w) w.close(); toast(groepAan() ? "Rapport is nog niet binnen (geen bereik, of nog niet verstuurd)" : "Rapport niet gevonden op deze telefoon"); return; }
+  if (d.startsWith("data:image/")) { if (w) w.close(); $("#viewerImg").src = d; $("#viewer").hidden = false; return; }
+  const url = URL.createObjectURL(await (await fetch(d)).blob());
+  if (w) { w.location.href = url; }
+  else { const a = document.createElement("a"); a.href = url; a.download = b.naam || "rapport.pdf"; document.body.appendChild(a); a.click(); a.remove(); }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function leesBestand(file) {
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    if (file.size > MAXBESTAND) return Promise.reject(new Error("Dit bestand is te groot (max. 10 MB)."));
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res({ naam: file.name, data: String(r.result).replace(/^data:[^;]*;/, "data:application/pdf;") }); r.onerror = () => rej(new Error("Bestand kon niet gelezen worden.")); r.readAsDataURL(file); });
+  }
+  if (/^image\//.test(file.type)) return maakFoto(file).then(f => ({ naam: (file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg", data: f.data }));
+  return Promise.reject(new Error("Alleen een PDF of een foto."));
+}
+
 /* ---------- keuringen ---------- */
 function keuringDetail(kid) {
   const k = db.keuringen.find(x => x.id === kid); if (!k) return;
@@ -1409,11 +1455,14 @@ function keuringDetail(kid) {
       ${k.notitie ? `<div><span>Notitie</span><span>${esc(k.notitie)}</span></div>` : ""}
     </div>
     <div class="actions"><button class="btn done" id="kGekeurd">Gekeurd</button><button class="btn" id="kEdit">Bewerken</button><button class="btn warn" id="kDel">Verwijderen</button></div>
+    ${hist.some(h => (h.bestanden || []).length) ? `<span class="lbl">Rapporten</span>
+    <div class="actions" style="margin-top:-6px">${hist.flatMap(h => (h.bestanden || []).map(b => `<button class="btn" type="button" data-bestand="${esc(b.id)}" data-naam="${esc(b.naam)}">${fmtDate(h.t)} · ${esc(b.naam)}</button>`)).join("")}</div>` : ""}
     <span class="lbl">Eerder gekeurd</span>
-    ${hist.length ? `<div class="hist">${hist.map((h, i) => `<button type="button" class="h hb" data-hi="${i}"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
+    ${hist.length ? `<div class="hist">${hist.map((h, i) => `<button type="button" class="h hb" data-hi="${i}"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span>${(h.bestanden || []).length ? `<span class="chip oh">${h.bestanden.length === 1 ? "rapport" : h.bestanden.length + " rapporten"}</span>` : ""}</div></div><span class="go" aria-hidden="true">›</span></button>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
     ${m ? `<button class="linkish" data-terug="1">Terug naar ${esc(m.naam)}</button>` : ""}`, ov => {
     ov.querySelector("#kGekeurd").onclick = () => gekeurdForm(kid);
     ov.querySelectorAll("[data-hi]").forEach(b => b.onclick = () => gekeurdForm(kid, +b.dataset.hi));
+    ov.querySelectorAll("[data-bestand]").forEach(b => b.onclick = () => openBestand({ id: b.dataset.bestand, naam: b.dataset.naam }));
     ov.querySelector("#kEdit").onclick = () => keuringForm(k.machineId, kid);
     const t = ov.querySelector("[data-terug]"); t && (t.onclick = () => machineDetail(k.machineId));
     armed(ov.querySelector("#kDel"), "Zeker weten? Tik nog een keer", () => { verwijder("keuring", kid); render(); m ? machineDetail(m.id) : closeSheet(); toast("Keuring verwijderd"); });
@@ -1475,14 +1524,34 @@ function gekeurdForm(kid, hi) {
     </div>
     <div class="field"><label for="go">Opmerking <span>(optioneel)</span></label><input id="go" type="text" value="${esc(h0 ? h0.opm || "" : "")}" placeholder="Bijv. goedgekeurd, ketting vervangen"></div>
     <div class="field"><label for="gdoor">Door</label><input id="gdoor" type="text" value="${esc(h0 ? h0.door : me)}"></div>
+    <div class="field"><span class="lbl">Keuringsrapport <span>(PDF of foto, optioneel)</span></span>
+      <div class="actions" id="gb" style="margin-top:0"></div>
+      <input class="vh" id="gf" type="file" accept="application/pdf,image/*" multiple></div>
     <p class="err" id="err" hidden></p>
     <button class="btn primary groot" id="gOk">Opslaan</button>
     ${h0 ? '<button class="btn warn" id="gDel">Deze keuring verwijderen</button>' : ""}`, ov => {
-    const gd = ov.querySelector("#gd"), gt = ov.querySelector("#gt");
+    const gd = ov.querySelector("#gd"), gt = ov.querySelector("#gt"), err0 = ov.querySelector("#err");
+    const bestanden = h0 ? (h0.bestanden || []).slice() : [], nieuw = {}; // nieuw[id] = data, pas bij Opslaan bewaard
+    const tekenB = () => {
+      ov.querySelector("#gb").innerHTML = bestanden.map((b, i) => `<span class="btn" style="display:inline-flex;align-items:center;gap:6px"><button type="button" data-open="${i}" style="border:0;background:none;padding:0;font:inherit;color:inherit">${esc(b.naam)}</button><button type="button" data-weg="${i}" aria-label="${esc(b.naam)} weghalen" style="border:0;background:none;padding:0 2px;font:inherit;color:var(--muted)">×</button></span>`).join("")
+        + (bestanden.length < 5 ? '<label class="btn" for="gf" style="display:inline-flex;align-items:center">+ Rapport toevoegen</label>' : "");
+    };
+    tekenB();
+    ov.querySelector("#gb").addEventListener("click", e => {
+      const w = e.target.closest("[data-weg]"); if (w) { const b = bestanden.splice(+w.dataset.weg, 1)[0]; delete nieuw[b.id]; tekenB(); return; }
+      const o = e.target.closest("[data-open]"); if (o) { const b = bestanden[+o.dataset.open]; if (nieuw[b.id]) fotoDb.set(b.id, nieuw[b.id]).catch(() => {}).then(() => openBestand(b)); else openBestand(b); }
+    });
+    ov.querySelector("#gf").addEventListener("change", async e => {
+      for (const f of [...e.target.files].slice(0, 5 - bestanden.length)) {
+        try { const b = await leesBestand(f); const id = nieuwId("d_"); nieuw[id] = b.data; bestanden.push({ id, naam: b.naam }); }
+        catch (x) { err0.textContent = x.message; err0.hidden = false; }
+      }
+      e.target.value = ""; tekenB();
+    });
     let totZelf = !!h0;
     gt.addEventListener("input", () => totZelf = true);
     gd.addEventListener("input", () => { if (!totZelf && gd.value) gt.value = voorstel(gd.value); });
-    ov.querySelector("#gOk").onclick = () => {
+    ov.querySelector("#gOk").onclick = async () => {
       const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
       const t = vanDag(gd.value), tot = vanDag(gt.value), door = ov.querySelector("#gdoor").value.trim();
       if (!t) return fail("Kies de datum van de keuring.");
@@ -1490,7 +1559,11 @@ function gekeurdForm(kid, hi) {
       if (tot <= t) return fail("Geldig tot moet na de keuringsdatum liggen.");
       if (!door) return fail("Vul in wie het gedaan of geregeld heeft.");
       if (!h0 && door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const opgeslagen = [];
+      for (const b of bestanden) if (nieuw[b.id]) { try { await fotoDb.set(b.id, nieuw[b.id]); opgeslagen.push(b.id); } catch (x) { return fail("Het rapport kon niet bewaard worden op dit apparaat (geheugen vol?)."); } }
+      if (opgeslagen.length) store.set("wpbFotoWacht", store.get("wpbFotoWacht", []).concat(opgeslagen));
       const regel = { t: Math.min(t, Date.now()), tot, door, opm: ov.querySelector("#go").value.trim() };
+      if (bestanden.length) regel.bestanden = bestanden.map(b => ({ id: b.id, naam: b.naam }));
       const hist = (h0 ? (k.hist || []).map((x, i) => i === hi ? regel : x) : [regel, ...(k.hist || [])]).sort((a, b) => b.t - a.t).slice(0, 50);
       wijzig("keuring", Object.assign({}, k, { tot: nieuweTot(hist), hist })); render(); keuringDetail(kid); toast(h0 ? "Keuring aangepast" : "Keuring vastgelegd");
     };
@@ -1552,7 +1625,7 @@ function prMachine(m, nu) {
   const ksH = ks.flatMap(k => (k.hist || []).map(h => ({ k, h }))).sort((a, b) => b.h.t - a.h.t);
   const kT = ks.length ? `<table><thead><tr><th>Keuring</th><th>Geldig tot</th><th>Status</th><th>Hoe vaak</th><th>Notitie</th></tr></thead><tbody>${ks.map(k => { const x = kStatus(k);
       return `<tr><td>${esc(k.soort)}</td><td class="nw">${csvDatum(k.tot)}</td><td class="nw">${x.lvl === "ok" ? "Geldig" : "<b>" + KL[x.lvl] + "</b>"}</td><td class="nw">${k.maanden ? "elke " + k.maanden + " mnd" : ""}</td><td>${esc(k.notitie || "")}</td></tr>`; }).join("")}</tbody></table>
-      ${ksH.length ? `<table style="margin-top:6pt"><thead><tr><th>Gekeurd op</th><th>Keuring</th><th>Geldig tot</th><th>Door</th><th>Opmerking</th></tr></thead><tbody>${ksH.map(({ k, h }) => `<tr><td class="nw">${csvDatum(h.t)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(h.tot)}</td><td>${esc(h.door)}</td><td>${esc(h.opm || "")}</td></tr>`).join("")}</tbody></table>` : ""}`
+      ${ksH.length ? `<table style="margin-top:6pt"><thead><tr><th>Gekeurd op</th><th>Keuring</th><th>Geldig tot</th><th>Door</th><th>Opmerking</th></tr></thead><tbody>${ksH.map(({ k, h }) => `<tr><td class="nw">${csvDatum(h.t)}</td><td>${esc(k.soort)}</td><td class="nw">${csvDatum(h.tot)}</td><td>${esc(h.door)}</td><td>${esc(h.opm || "")}${(h.bestanden || []).length ? ` <span class="pr-k">(rapport: ${h.bestanden.map(b => esc(b.naam)).join(", ")})</span>` : ""}</td></tr>`).join("")}</tbody></table>` : ""}`
     : "";
   const ohT = oh.length ? `<table><thead><tr><th>Datum</th>${m.urenteller ? '<th class="r">Uren</th>' : ""}<th>Wat is er gedaan</th><th>Door</th></tr></thead><tbody>${oh.map(o =>
     `<tr><td class="nw">${csvDatum(o.t)}</td>${m.urenteller ? `<td class="r">${o.uren != null ? nf(o.uren) : ""}</td>` : ""}<td>${esc(o.wat)}</td><td>${esc(o.door)}</td></tr>`).join("")}</tbody></table>` : '<p class="pr-leeg">Nog geen onderhoud vastgelegd.</p>';
