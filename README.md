@@ -47,6 +47,8 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
 - **Keuringsrapport**: bij Gekeurd (of bij het bewerken van een eerdere keuring) **+ Rapport toevoegen**: een PDF of een
   foto (max. 10 MB, tot 5 stuks). In de keuring staat het onder **Rapporten**: tikken = openen (pc: nieuw tabblad,
   telefoon: downloaden en openen). Ze gaan naar de groep, in de Drive-map met de foto's.
+- Op de pc kun je een PDF (uit de mail of de verkenner) ook **slepen**: op een keuring = nieuwe keuring met dat rapport,
+  in het venster Gekeurd = rapport erbij.
 - Bovenaan in Machines staat **Keuringen** met wat verlopen is of binnenkort verloopt; op de tegel een label.
 - Losse dingen (brandblussers, ladders, stellingen): maak er een machine van in de categorie Overig.
 - Keuringen staan ook in de PDF en de Excel-export.

@@ -216,6 +216,7 @@ textarea{min-height:84px;resize:vertical}
 .stat b{display:block;font-size:1.35rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat span{font-size:.78rem;color:var(--muted)}
 .copybox{font-size:.84rem;word-break:break-all;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;user-select:all;-webkit-user-select:all}
+.sheet.slepen{outline:3px dashed var(--busy);outline-offset:-8px;background:var(--busy-soft)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:999px;font-weight:500;font-size:.92rem;max-width:calc(100% - 32px);text-align:center}
 /* pc/tablet: venster in het midden, dan klik je er minder snel naast */
 @media (min-width:700px) and (min-height:520px){.overlay{align-items:center;padding:24px}.sheet{border-radius:16px;max-height:88vh;padding-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)}}
@@ -287,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 24; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 25; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1432,6 +1433,19 @@ async function openBestand(b) {
   else { const a = document.createElement("a"); a.href = url; a.download = b.naam || "rapport.pdf"; document.body.appendChild(a); a.click(); a.remove(); }
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+// Bestanden in een venster slepen (pc): zone krijgt een rand, loslaten = fn(files)
+const isPc = () => !!(window.matchMedia && matchMedia("(pointer: fine)").matches);
+const sleepBestanden = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes("Files");
+function sleepZone(el, fn) {
+  let n = 0;
+  el.addEventListener("dragenter", e => { if (!sleepBestanden(e)) return; e.preventDefault(); n++; el.classList.add("slepen"); });
+  el.addEventListener("dragover", e => { if (sleepBestanden(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } });
+  el.addEventListener("dragleave", () => { if (--n <= 0) { n = 0; el.classList.remove("slepen"); } });
+  el.addEventListener("drop", e => { if (!sleepBestanden(e)) return; e.preventDefault(); e.stopPropagation(); n = 0; el.classList.remove("slepen"); if (e.dataTransfer.files.length) fn([...e.dataTransfer.files]); });
+}
+// Een bestand dat naast een venster valt mag de app niet wegklikken (de browser zou het anders openen)
+document.addEventListener("dragover", e => { if (sleepBestanden(e)) e.preventDefault(); });
+document.addEventListener("drop", e => { if (sleepBestanden(e)) { e.preventDefault(); toast("Sleep het rapport op een keuring of in het venster Gekeurd"); } });
 function leesBestand(file) {
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
     if (file.size > MAXBESTAND) return Promise.reject(new Error("Dit bestand is te groot (max. 10 MB)."));
@@ -1457,12 +1471,14 @@ function keuringDetail(kid) {
     <div class="actions"><button class="btn done" id="kGekeurd">Gekeurd</button><button class="btn" id="kEdit">Bewerken</button><button class="btn warn" id="kDel">Verwijderen</button></div>
     ${hist.some(h => (h.bestanden || []).length) ? `<span class="lbl">Rapporten</span>
     <div class="actions" style="margin-top:-6px">${hist.flatMap(h => (h.bestanden || []).map(b => `<button class="btn" type="button" data-bestand="${esc(b.id)}" data-naam="${esc(b.naam)}">${fmtDate(h.t)} · ${esc(b.naam)}</button>`)).join("")}</div>` : ""}
+    ${isPc() ? '<p class="hint">Rapport binnen? Sleep de PDF in dit venster om hem als nieuwe keuring vast te leggen.</p>' : ""}
     <span class="lbl">Eerder gekeurd</span>
     ${hist.length ? `<div class="hist">${hist.map((h, i) => `<button type="button" class="h hb" data-hi="${i}"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span>${(h.bestanden || []).length ? `<span class="chip oh">${h.bestanden.length === 1 ? "rapport" : h.bestanden.length + " rapporten"}</span>` : ""}</div></div><span class="go" aria-hidden="true">›</span></button>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
     ${m ? `<button class="linkish" data-terug="1">Terug naar ${esc(m.naam)}</button>` : ""}`, ov => {
     ov.querySelector("#kGekeurd").onclick = () => gekeurdForm(kid);
     ov.querySelectorAll("[data-hi]").forEach(b => b.onclick = () => gekeurdForm(kid, +b.dataset.hi));
     ov.querySelectorAll("[data-bestand]").forEach(b => b.onclick = () => openBestand({ id: b.dataset.bestand, naam: b.dataset.naam }));
+    sleepZone(ov.querySelector(".sheet"), files => gekeurdForm(kid, null, files));
     ov.querySelector("#kEdit").onclick = () => keuringForm(k.machineId, kid);
     const t = ov.querySelector("[data-terug]"); t && (t.onclick = () => machineDetail(k.machineId));
     armed(ov.querySelector("#kDel"), "Zeker weten? Tik nog een keer", () => { verwijder("keuring", kid); render(); m ? machineDetail(m.id) : closeSheet(); toast("Keuring verwijderd"); });
@@ -1510,7 +1526,7 @@ function keuringForm(mid, kid) {
 }
 // Keuring vastleggen (hi leeg) of een eerdere keuring (hist[hi]) bewerken/verwijderen.
 // De bovenste (nieuwste) bepaalt "geldig tot" van de keuring.
-function gekeurdForm(kid, hi) {
+function gekeurdForm(kid, hi, startBestanden) {
   const k = db.keuringen.find(x => x.id === kid); if (!k) return;
   const h0 = hi != null ? (k.hist || [])[hi] : null; if (hi != null && !h0) return;
   const m = mach(k.machineId), vandaag = isoDag(Date.now());
@@ -1526,7 +1542,8 @@ function gekeurdForm(kid, hi) {
     <div class="field"><label for="gdoor">Gekeurd door <span>(keuringsbedrijf, of wie het geregeld heeft)</span></label><input id="gdoor" type="text" value="${esc(h0 ? h0.door : "")}" placeholder="Bijv. naam keuringsbedrijf"></div>
     <div class="field"><span class="lbl">Keuringsrapport <span>(PDF of foto, optioneel)</span></span>
       <div class="actions" id="gb" style="margin-top:0"></div>
-      <input class="vh" id="gf" type="file" accept="application/pdf,image/*" multiple></div>
+      <input class="vh" id="gf" type="file" accept="application/pdf,image/*" multiple>
+      ${isPc() ? '<p class="hint">Of sleep de PDF (uit de mail of de verkenner) in dit venster.</p>' : ""}</div>
     <p class="err" id="err" hidden></p>
     <button class="btn primary groot" id="gOk">Opslaan</button>
     ${h0 ? '<button class="btn warn" id="gDel">Deze keuring verwijderen</button>' : ""}`, ov => {
@@ -1541,13 +1558,18 @@ function gekeurdForm(kid, hi) {
       const w = e.target.closest("[data-weg]"); if (w) { const b = bestanden.splice(+w.dataset.weg, 1)[0]; delete nieuw[b.id]; tekenB(); return; }
       const o = e.target.closest("[data-open]"); if (o) { const b = bestanden[+o.dataset.open]; if (nieuw[b.id]) fotoDb.set(b.id, nieuw[b.id]).catch(() => {}).then(() => openBestand(b)); else openBestand(b); }
     });
-    ov.querySelector("#gf").addEventListener("change", async e => {
-      for (const f of [...e.target.files].slice(0, 5 - bestanden.length)) {
+    const voegToe = async lijst => {
+      sheetAangeraakt = true; // Esc sluit dit venster dan niet meer per ongeluk
+      if (bestanden.length + lijst.length > 5) { err0.textContent = "Maximaal 5 rapporten per keuring."; err0.hidden = false; }
+      for (const f of lijst.slice(0, 5 - bestanden.length)) {
         try { const b = await leesBestand(f); const id = nieuwId("d_"); nieuw[id] = b.data; bestanden.push({ id, naam: b.naam }); }
         catch (x) { err0.textContent = x.message; err0.hidden = false; }
       }
-      e.target.value = ""; tekenB();
-    });
+      tekenB();
+    };
+    ov.querySelector("#gf").addEventListener("change", async e => { await voegToe([...e.target.files]); e.target.value = ""; });
+    sleepZone(ov.querySelector(".sheet"), voegToe);
+    if (startBestanden && startBestanden.length) voegToe(startBestanden);
     let totZelf = !!h0;
     gt.addEventListener("input", () => totZelf = true);
     gd.addEventListener("input", () => { if (!totZelf && gd.value) gt.value = voorstel(gd.value); });
