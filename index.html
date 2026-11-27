@@ -288,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 25; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 26; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -596,6 +596,8 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["1318", "Handstrooier groen", "", "Handstrooier", "groen", "", 7, 0],
   ["1319", "Handstrooier zwart 1", "", "Handstrooier", "zwart", "", 7, 0],
   ["1320", "Handstrooier zwart 2", "", "Handstrooier", "zwart", "", 7, 0],
+  ["1321", "Zoutstrooier Amazone 751 Hydro", "", "Zoutstrooier", "Amazone E+S 751 Hydro (met opzetrand)", "", 7, 0],
+  ["1322", "Zoutstrooier Amazone 751 aftakas", "", "Zoutstrooier", "Amazone E+S 751 Special", "", 7, 0],
   ["1401", "Stamper Wacker", "", "Stamper", "Wacker", "", 8, 0],
   ["1403", "Trilplaat Wacker 5 tonner", "", "Trilplaat", "Wacker 5 tonner", "", 8, 0],
   ["1404", "Trilplaat Wacker WP4 1550", "", "Trilplaat", "Wacker WP4 1550", "", 8, 0],
@@ -628,7 +630,7 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 2;
+const LIJST_VERSIE = 3; // 3: Amazone-strooiers 1321 en 1322 erbij
 // Uit de lijst gehaald (dubbel: 1424 Citroën ë Joost = 1419 ë-Berlingo VVB-09-F). Al ingelezen? Dan weg, als er nog niks bij staat.
 const LIJST_VERVALLEN = ["1424"];
 // Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
