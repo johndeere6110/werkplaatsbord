@@ -292,7 +292,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 38; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 39; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -503,7 +503,7 @@ const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categ
   ["0711", "John Deere 3046R", "T-15-DPB", "Trekker", "John Deere 3046R", "11-1-2022", 0, 1],
   ["0712", "John Deere 3045R", "TBN-15-Z", "Trekker", "John Deere 3045R", "19-2-2018", 0, 1],
   ["0713", "Valtra T234 Jouke", "TBN-54-Z", "Trekker", "Valtra T234", "15-2-2018", 0, 1],
-  ["0714", "Valtra T174", "T-29-BNB", "Trekker", "Valtra T174", "31-12-2016", 0, 1],
+  ["0714", "Valtra T174", "T-29-BNB", "Trekker", "Valtra T174A", "31-12-2016", 0, 1],
   ["0715", "Valtra T174 Adri", "T-43-DSN", "Trekker", "Valtra T174", "1-12-2021", 0, 1],
   ["0716", "New Holland T7030", "", "Trekker", "New Holland T7030", "30-6-2012", 0, 1],
   ["0717", "John Deere 3046R Sandy", "T-03-HLV", "Trekker", "John Deere 3046R", "1-4-2026", 0, 1],
@@ -652,7 +652,7 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 10; // 10: bouwjaar 1322 2027 -> 2026; 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief; 9: machines uit de Excel-schema's erbij, 0107 weg
+const LIJST_VERSIE = 11; // 11: 0714 (T174A) naar het archief; 10: bouwjaar 1322 2027 -> 2026; 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief; 9: machines uit de Excel-schema's erbij, 0107 weg
 // Aanvullen per machinenummer: alleen velden die nog leeg zijn (wat iemand zelf invulde blijft staan)
 const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T214" } };
 // Verbeteren: [veld, oude waarde, nieuwe waarde]; alleen als er nog precies de oude waarde staat
@@ -662,7 +662,7 @@ const LIJST_TERUG = { "0715": Date.parse("2026-11-27T15:00:00Z") };
 // Uit de lijst gehaald (1424 = dubbel met 1419; 0703, 0706, 0710 = ingeruild). Al ingelezen? Dan weg, als er nog niks bij staat.
 const LIJST_VERVALLEN = ["1424"];
 // Ingeruild: naar het tabje Ingeruild (bestaat hij niet meer, of is hij weggehaald, dan komt hij daar terug)
-const LIJST_ARCHIEF = { "0703": "ingeruild", "0706": "ingeruild", "0710": "ingeruild", "0107": "weg" };
+const LIJST_ARCHIEF = { "0703": "ingeruild", "0706": "ingeruild", "0710": "ingeruild", "0107": "weg", "0714": "weg" };
 // Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
 // sync, zodat het apparaat ziet wat er al is. Bestaande machines houden hun naam en alles wat erbij staat; ze krijgen
 // alleen nummer, merk/type, bouwjaar en (als dat leeg is) kenteken. Nieuwe machines krijgen id n<nr> met g = 1: wat al in
@@ -729,7 +729,7 @@ function lijstInlezen() {
 // Eén keer per apparaat (wpbExcel): de onderhoudsschema's uit Excel (excel-import.json) inlezen. Zelfde opzet als de
 // machinelijst: vaste id's (ox...) met g = 1, dus nooit dubbel en wat al in de groep staat wint. Een beurt die al binnen
 // 14 dagen in de app staat wordt overgeslagen. Chassisnummer en info alleen aanvullen.
-const EXCEL_VERSIE = 1;
+const EXCEL_VERSIE = 2; // 2: schema Valtra T174A (0714) erbij
 let excelBezig = false;
 function zetLokaal(soort, obj) { // met groep: gewoon wijzigen; zonder groep: niet "nieuwer" maken dan wat later uit de groep komt
   if (groepAan()) return wijzig(soort, obj);
