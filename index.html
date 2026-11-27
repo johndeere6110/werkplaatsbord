@@ -265,6 +265,7 @@ textarea{min-height:84px;resize:vertical}
       <button role="tab" data-tab="klaar" aria-selected="false">Klaar</button>
     </div>
     <div class="cats" id="mcats" hidden></div>
+    <input id="mzoek" type="search" placeholder="Zoek op nummer, naam, merk of kenteken" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-label="Machine zoeken" hidden>
   </header>
   <main id="view"></main>
   <p class="voet" id="voet"></p>
@@ -286,7 +287,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 18; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 19; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -670,6 +671,9 @@ const mach = id => db.machines.find(m => m.id === id);
 const mName = x => x.machineId ? (mach(x.machineId)?.naam || "Onbekende machine") : (x.machineVrij || "Overig");
 // Machinenummer vóór de naam (HTML, al ge-escaped): nrNaam(machine) of nrNaam(null, losse naam)
 const nrNaam = (m, naam) => (m && m.nr ? `<span class="nr">${esc(m.nr)}</span>` : "") + esc(m ? m.naam : naam);
+// Zoeken in machines: alle woorden moeten erin voorkomen (nummer, naam, soort, merk/type, kenteken met of zonder streepjes)
+const zoekTekst = m => [m.nr, m.naam, m.type, m.model, m.kenteken, (m.kenteken || "").replace(/-/g, ""), catOf(m)].filter(Boolean).join(" ").toLowerCase();
+const zoekPast = (m, q) => { const t = zoekTekst(m); return String(q || "").toLowerCase().split(/\s+/).filter(Boolean).every(w => t.includes(w) || t.includes(w.replace(/-/g, ""))); };
 const nrVan = x => nrNaam(x.machineId ? mach(x.machineId) : null, mName(x));
 const nf = n => Number(n).toLocaleString("nl-NL");
 function ago(ts) { const d = Math.floor((Date.now() - ts) / DAY); if (d < 1) return "vandaag"; if (d < 2) return "gisteren"; if (d < 14) return d + " dagen"; if (d < 60) return Math.floor(d / 7) + " weken"; return Math.floor(d / 30) + " maanden"; }
@@ -952,7 +956,7 @@ function rowHTML(x, showMachine) {
     </div></div>`;
 }
 function renderMeldingen() {
-  $("#tabs").hidden = false; $("#mcats").hidden = true;
+  $("#tabs").hidden = false; $("#mcats").hidden = true; $("#mzoek").hidden = true;
   if (tab === "klaar") {
     const items = db.meldingen.filter(x => x.status === "klaar").sort((a, b) => (b.tKlaar || 0) - (a.tKlaar || 0)).slice(0, 100);
     $("#view").innerHTML = `<div class="list">${items.length ? `<div class="group">${items.map(x => rowHTML(x, true)).join("")}</div>` : '<p class="empty">Nog niks afgerond.</p>'}</div>`;
@@ -985,7 +989,8 @@ function renderMachines() {
   $("#tabs").hidden = true;
   const mc = $("#mcats"); mc.hidden = false; mc.innerHTML = catChips(db.machines, mcat, "data-cat");
   const yr = new Date().getFullYear();
-  const ms = db.machines.filter(m => mcat === "Alles" || catOf(m) === mcat).sort(opNr);
+  const q = $("#mzoek").value.trim(); $("#mzoek").hidden = false;
+  const ms = db.machines.filter(m => (mcat === "Alles" || catOf(m) === mcat) && zoekPast(m, q)).sort(opNr);
   const due = ms.map(m => ({ m, s: ohStatus(m) })).filter(o => o.s.lvl === "late" || o.s.lvl === "soon").sort((a, b) => (a.s.lvl === "late" ? 0 : 1) - (b.s.lvl === "late" ? 0 : 1));
   // Machines zonder vastgelegde beurt: in één keer doorlopen (zelfde volgorde als hieronder)
   const zonder = CATS.flatMap(c => ms.filter(m => catOf(m) === c)).filter(beurtNodig);
@@ -1013,6 +1018,10 @@ function renderMachines() {
   const grid = mcat === "Alles"
     ? CATS.map(c => { const l = ms.filter(m => catOf(m) === c); return l.length ? `<h2 class="section-h">${c} (${l.length})</h2><div class="mgrid">${l.map(tile).join("")}</div>` : ""; }).join("")
     : `<h2 class="section-h">${mcat} (${ms.length})</h2><div class="mgrid">${ms.map(tile).join("")}</div>`;
+  if (q) { // zoeken: alleen de gevonden machines
+    $("#view").innerHTML = ms.length ? grid : `<p class="empty">Niks gevonden voor "${esc(q)}"${mcat !== "Alles" ? ` in ${esc(mcat)}. Probeer het bij Alles` : ""}.</p>`;
+    return;
+  }
   $("#view").innerHTML = `${keurHTML}<h2 class="section-h">Onderhoud aan de beurt</h2>${dueHTML}${grid}
    <div class="actions" style="margin-top:16px"><button class="btn" id="addMach" type="button">+ Machine toevoegen</button><button class="btn" id="pdfAlles" type="button">Alles als PDF</button><button class="btn" id="csvAlles" type="button">Alles naar Excel</button></div>`;
 }
@@ -1097,7 +1106,7 @@ function newMelding(preMach) {
     const drawPick = () => {
       const s = q.value.trim().toLowerCase();
       ov.querySelector("#fcats").innerHTML = catChips(db.machines, st.cat, "data-fc");
-      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && (!s || ((m.nr || "") + " " + m.naam + " " + (m.type || "") + " " + (m.kenteken || "") + " " + (m.kenteken || "").replace(/-/g, "")).toLowerCase().includes(s)));
+      const list = ordered.filter(m => (st.cat === "Alles" || catOf(m) === st.cat) && zoekPast(m, s));
       pick.innerHTML = list.map(m => `<button type="button" data-m="${esc(m.id)}" aria-pressed="${st.machineId === m.id}">${esc(m.naam)}<small>${m.nr ? esc(m.nr) + " · " : ""}${esc(m.type || catOf(m))}</small></button>`).join("") +
         `<button type="button" data-m="__overig" aria-pressed="${st.overig}">Overig<small>staat er niet tussen</small></button>`;
     };
@@ -1697,6 +1706,11 @@ $("#view").addEventListener("click", e => {
 $("#fab").onclick = () => newMelding();
 $("#navMeld").onclick = () => { view = "meldingen"; render(); window.scrollTo(0, 0); };
 $("#navMach").onclick = () => { view = "machines"; render(); window.scrollTo(0, 0); };
+$("#mzoek").addEventListener("input", () => { render(); window.scrollTo(0, 0); });
+$("#mzoek").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.target.value = ""; render(); }
+  if (e.key === "Enter") { e.preventDefault(); const t = $("#view").querySelectorAll(".mtile"); if (t.length === 1) t[0].click(); else e.target.blur(); }
+});
 $("#whoBtn").onclick = () => instellingen();
 $("#voet").textContent = "Werkplaatsbord · versie " + VERSIE;
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { if (neemUitnodiging() && !me) instellingen(); planSync(200); } });

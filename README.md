@@ -18,7 +18,9 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
 - De machinelijst van de werkplaats (247 machines, met machinenummer, kenteken, merk/type en bouwjaar) staat erin.
   Machines die er al in stonden hielden hun naam, storingen en beurten.
 - Tabjes per categorie: Trekkers, Kranen, Shovels, Auto's, Wagens, Werktuigen, Aanbouwdelen, Winterdienst, Klein
-  materieel, Overig. Binnen een categorie op machinenummer. Zoeken kan ook op nummer en kenteken.
+  materieel, Overig. Binnen een categorie op machinenummer.
+- **Zoeken** (bovenaan in Machines en bij storing melden): op nummer, naam, soort, merk/type of kenteken (met of zonder
+  streepjes), meerdere woorden mag ("valtra t214"). Enter bij één resultaat opent hem, Esc maakt het veld leeg.
 - Per machine: urenstand, open storingen, hoe vaak gemeld dit jaar, onderhoud en de geschiedenis (storingen en
   onderhoud door elkaar; tik een storing aan om hem te openen).
 - **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Met een interval (elke … uur en/of elke … maanden, wat
