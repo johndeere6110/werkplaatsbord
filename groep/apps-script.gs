@@ -297,7 +297,7 @@ function dagelijks() {
       const d = dagNr_(dt.getTime()) - vandaag;
       delen.push(d >= 0 ? 'over ' + d + ' dagen' : (-d) + ' dagen te laat'); lvl = Math.min(lvl, d < 0 ? 0 : d <= 30 ? 1 : 2);
     }
-    if (lvl < 2) melden('o|' + id + '|' + l.id, lvl, m.naam + ': onderhoud ' + (lvl === 0 ? 'te laat' : 'binnenkort') + ' (' + delen.join(', ') + ')');
+    if (lvl < 2) melden('o|' + id + '|' + l.id, lvl, m.naam + ': onderhoud ' + (lvl === 0 ? 'te laat' : 'binnenkort') + ' (' + delen.join(' of ') + ')');
   });
   props.setProperty('GEMELD', JSON.stringify(nieuw));
   if (!regels.length) return;

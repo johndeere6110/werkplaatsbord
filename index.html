@@ -287,7 +287,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 20; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 21; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -727,7 +727,7 @@ function ohStatus(m) {
   const bump = l => { if (l === "late" || (l === "soon" && lvl === "ok")) lvl = l; };
   if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; parts.push(r >= 0 ? `nog ${nf(r)} uur` : `${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
   if (iv.maanden) { const d = Math.round((addMonths(last.t, iv.maanden) - Date.now()) / DAY); parts.push(d >= 0 ? `over ${span(d)}` : `${span(-d)} te laat`); bump(d < 0 ? "late" : d <= 30 ? "soon" : "ok"); }
-  return { lvl, txt: parts.join(" · ") || "Urenstand onbekend" };
+  return { lvl, txt: parts.join(" of ") || "Urenstand onbekend" }; // wat het eerst komt
 }
 const ivTxt = iv => [iv.uren ? `elke ${nf(iv.uren)} uur` : "", iv.maanden ? `elke ${iv.maanden} maanden` : ""].filter(Boolean).join(" of ") || "niet ingesteld";
 function bumpUren(mid, u) { const m = mach(mid); if (m && u != null && !isNaN(u) && (m.uren == null || u > m.uren)) wijzig("machine", Object.assign({}, m, { uren: u })); }
