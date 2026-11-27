@@ -104,6 +104,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .gl::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--muted)}
 .gmore{font-size:.8rem;color:var(--muted);margin-top:4px}
 .gfoot{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 14px;color:var(--muted);font-size:.86rem}
+.nr{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums;margin-right:.4em}
 .mname{font-weight:600;font-size:1.05rem;line-height:1.25;min-width:0;overflow-wrap:anywhere}
 .row{display:grid;grid-template-columns:52px 1fr;gap:12px;padding:10px 14px;position:relative}
 .row+.row{border-top:1px solid var(--line)}
@@ -285,7 +286,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 17; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 18; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -667,6 +668,9 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const mach = id => db.machines.find(m => m.id === id);
 const mName = x => x.machineId ? (mach(x.machineId)?.naam || "Onbekende machine") : (x.machineVrij || "Overig");
+// Machinenummer vóór de naam (HTML, al ge-escaped): nrNaam(machine) of nrNaam(null, losse naam)
+const nrNaam = (m, naam) => (m && m.nr ? `<span class="nr">${esc(m.nr)}</span>` : "") + esc(m ? m.naam : naam);
+const nrVan = x => nrNaam(x.machineId ? mach(x.machineId) : null, mName(x));
 const nf = n => Number(n).toLocaleString("nl-NL");
 function ago(ts) { const d = Math.floor((Date.now() - ts) / DAY); if (d < 1) return "vandaag"; if (d < 2) return "gisteren"; if (d < 14) return d + " dagen"; if (d < 60) return Math.floor(d / 7) + " weken"; return Math.floor(d / 30) + " maanden"; }
 function span(d) { if (d <= 1) return "1 dag"; if (d < 14) return d + " dagen"; if (d < 60) return Math.round(d / 7) + " weken"; return Math.round(d / 30) + " maanden"; }
@@ -937,7 +941,7 @@ function rowHTML(x, showMachine) {
     <button class="open-detail" data-detail="${esc(x.id)}" aria-label="Storing ${esc(mName(x))} openen"></button>
     ${thumb}
     <div class="cbody">
-      ${showMachine ? `<div class="crow"><span class="mname">${esc(mName(x))}</span><span class="age">${when}</span></div>` : ""}
+      ${showMachine ? `<div class="crow"><span class="mname">${nrVan(x)}</span><span class="age">${when}</span></div>` : ""}
       <p class="txt">${esc(x.tekst)}</p>
       <div class="meta">
         ${x.status === "klaar" ? `<span class="chip klaar">Klaar${x.klaarDoor ? " · " + esc(x.klaarDoor) : ""}</span>` : ""}
@@ -961,10 +965,10 @@ function renderMeldingen() {
   const empty = { dringend: "Niks dringends. Mooi zo.", tijd: "Lijst is leeg. Tijd voor koffie." }[tab];
   $("#view").innerHTML = `<div class="list">${arr.length ? arr.map(g => {
     const m = g.k.startsWith("vrij:") ? null : mach(g.k);
-    const naam = esc(mName(g.list[0])), n = g.list.length;
-    if (n === 1) return `<section class="group"><button class="ghead" ${m ? `data-mach="${esc(m.id)}"` : "disabled"}><span class="mname">${naam}</span></button>${rowHTML(g.list[0], false)}</section>`;
+    const naam = esc(mName(g.list[0])), n = g.list.length, kop = nrVan(g.list[0]);
+    if (n === 1) return `<section class="group"><button class="ghead" ${m ? `data-mach="${esc(m.id)}"` : "disabled"}><span class="mname">${kop}</span></button>${rowHTML(g.list[0], false)}</section>`;
     const open = openGroups.has(g.k), kk = esc(g.k);
-    const hd = `<button class="ghead" data-toggle="${kk}" aria-expanded="${open}"><span class="mname">${naam}</span><span class="right"><span class="gcount">${n} storingen</span><span class="chev" aria-hidden="true">▾</span></span></button>`;
+    const hd = `<button class="ghead" data-toggle="${kk}" aria-expanded="${open}"><span class="mname">${kop}</span><span class="right"><span class="gcount">${n} storingen</span><span class="chev" aria-hidden="true">▾</span></span></button>`;
     const body = open
       ? g.list.map(x => rowHTML(x, false)).join("") + (m ? `<button class="gfoot" data-mach="${esc(m.id)}">Alles van ${naam} ›</button>` : "")
       : `<button class="gsum" data-toggle="${kk}" aria-label="Open ${n} storingen van ${naam}">${g.list.slice(0, 3).map(x => `<span class="gl">${esc(x.tekst)}</span>`).join("")}<span class="gmore">${n > 3 ? `En nog ${n - 3} meer. Tik om alles te zien` : "Tik om te openen"}</span></button>`;
@@ -989,9 +993,9 @@ function renderMachines() {
   const instelHTML = zonder.length ? `<button class="due instel" data-instel="1"><span><span class="mname">Laatste beurt invullen</span><span class="sub">Nog bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"}. Met Opslaan, volgende loop je ze achter elkaar door.</span></span><span class="go" aria-hidden="true">›</span></button>` : "";
   const kv = kVerloopt(ms), heeftK = db.keuringen.some(k => ms.some(m => m.id === k.machineId));
   const keurHTML = !heeftK ? "" : `<h2 class="section-h">Keuringen</h2>` + (kv.length
-    ? `<div class="duelist">${kv.map(({ k, s }) => `<button class="due" data-keur="${esc(k.id)}"><span><span class="mname">${esc(mach(k.machineId)?.naam || "?")} · ${esc(k.soort)}</span><span class="sub">${esc(s.txt)} (${fmtDate(k.tot)})</span></span><span class="chip ${s.lvl}">${s.lvl === "late" ? "Verlopen" : "Binnenkort"}</span></button>`).join("")}</div>`
+    ? `<div class="duelist">${kv.map(({ k, s }) => `<button class="due" data-keur="${esc(k.id)}"><span><span class="mname">${nrNaam(mach(k.machineId), "?")} · ${esc(k.soort)}</span><span class="sub">${esc(s.txt)} (${fmtDate(k.tot)})</span></span><span class="chip ${s.lvl}">${s.lvl === "late" ? "Verlopen" : "Binnenkort"}</span></button>`).join("")}</div>`
     : `<p class="empty" style="padding:16px">Alle keuringen zijn geldig.</p>`);
-  const dueHTML = due.length || zonder.length ? `<div class="duelist">${instelHTML}${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${esc(m.naam)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
+  const dueHTML = due.length || zonder.length ? `<div class="duelist">${instelHTML}${due.map(({ m, s }) => `<button class="due" data-mach="${esc(m.id)}"><span><span class="mname">${nrNaam(m)}</span><span class="sub">${esc(s.txt)}</span></span><span class="chip ${s.lvl}">${OHL[s.lvl]}</span></button>`).join("")}</div>`
     : `<p class="empty" style="padding:16px">Er is niks aan de beurt.</p>`;
   const chips = (m, s) => {
     const k = kVerloopt([m]), c = [];
@@ -1142,7 +1146,7 @@ function detail(id) {
   if (x.status !== "klaar") actions.push(`<button class="btn" data-prio="${other}">Naar ${other === "dringend" ? "Dringend" : "Als er tijd is"}</button>`);
   actions.push(`<button class="btn warn" id="delM">Verwijderen</button>`);
   const f = x.fotos || [];
-  openSheet(`${head(esc(mName(x)))}
+  openSheet(`${head(nrVan(x))}
     ${f.length ? `<div class="gallery">${f.map(s => `<div class="gf" data-foto="${esc(s)}"><span class="ph">foto laden…</span></div>`).join("")}</div>` : ""}
     <p class="grote">${esc(x.tekst)}</p>
     <div class="kv">
@@ -1173,8 +1177,8 @@ function machineDetail(mid) {
     ? `<div class="h"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div></div>`
     : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
     : '<p class="empty">Nog niks vastgelegd.</p>';
-  openSheet(`${head(esc(m.naam))}
-    <p class="hint" style="margin-top:-8px">${m.nr ? `nr. <b>${esc(m.nr)}</b> · ` : ""}${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}${m.model || m.bouwjaar ? "<br>" + esc([m.model, m.bouwjaar ? "bouwjaar " + m.bouwjaar : ""].filter(Boolean).join(" · ")) : ""}</p>
+  openSheet(`${head(nrNaam(m))}
+    <p class="hint" style="margin-top:-8px">${esc(m.type || catOf(m))}${m.kenteken ? ` · kenteken <b>${esc(m.kenteken)}</b>` : ""}${m.model || m.bouwjaar ? "<br>" + esc([m.model, m.bouwjaar ? "bouwjaar " + m.bouwjaar : ""].filter(Boolean).join(" · ")) : ""}</p>
     <div class="stats">
       <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
       <div class="stat"><b>${open}</b><span>nu open</span></div>
@@ -1248,7 +1252,7 @@ function instelForm(lijst, i) {
   if (!m) { if (i + 1 < lijst.length) instelForm(lijst, i + 1); else closeSheet(); return; }
   const iv = m.interval || {}, lo = lastOh(mid), rest = lijst.length - i - 1, today = new Date().toISOString().slice(0, 10);
   openSheet(`${head("Onderhoud instellen")}
-    <p class="hint" style="margin-top:-8px"><b>${esc(m.naam)}</b>${lijst.length > 1 ? ` · ${i + 1} van ${lijst.length}` : ""}</p>
+    <p class="hint" style="margin-top:-8px"><b>${nrNaam(m)}</b>${lijst.length > 1 ? ` · ${i + 1} van ${lijst.length}` : ""}</p>
     ${m.urenteller ? `<div class="field"><label for="iNu">Urenstand nu</label><input id="iNu" type="text" inputmode="numeric" value="${m.uren ?? ""}" placeholder="Wat staat er nu op de teller?"></div>` : ""}
     <span class="lbl">Laatste beurt</span>
     ${lo ? `<p class="hint">Staat er al: ${fmtDate(lo.t)}${lo.uren != null ? " bij " + nf(lo.uren) + " uur" : ""}. Een nieuwe beurt vul je in met Onderhoud gedaan.</p>` : `
