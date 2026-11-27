@@ -303,7 +303,7 @@ function dagelijks() {
     if (vorige == null || stap < vorige) regels.push(tekst);
   };
   keuringen.sort(function (a, b) { return a.tot - b.tot; }).forEach(function (k) {
-    const m = machines[k.machineId]; if (!m || !k.tot) return;
+    const m = machines[k.machineId]; if (!m || m.archief || !k.tot) return;
     const d = dagNr_(k.tot) - vandaag, voor = k.vooraf == null ? 30 : Number(k.vooraf);
     if (d > voor) return;
     const stap = d < 0 ? -1 : d === 0 ? 0 : d === 1 ? 1 : d <= 7 ? 7 : d <= 14 ? 14 : 99;
@@ -311,6 +311,7 @@ function dagelijks() {
   });
   Object.keys(machines).forEach(function (id) {
     const m = machines[id], iv = m.interval || {};
+    if (m.archief) return; // ingeruild / niet meer in gebruik
     if (!iv.uren && !iv.maanden) return;
     const l = (onderhoud[id] || []).sort(function (a, b) { return b.t - a.t; })[0]; if (!l) return;
     let lvl = 2; const delen = [];

@@ -11,10 +11,11 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
-  uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, chassis, info (vrije tekst), kenteken, cat, urenteller, uren,
+  uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, chassis, info (vrije tekst), archief (ingeruild: datum of tekst; leeg = in gebruik), kenteken, cat, urenteller, uren,
   interval {uren, maanden}}; onderhoud
   {id o_..., machineId, t, uren, wat, door}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
-  (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm, bestanden [{id d_..., naam}]}]}; de nieuwste hist bepaalt tot. De startmachines hebben vaste id's v1..v17. De machinelijst van de werkplaats (MACHINELIJST in index.html, 246 stuks; LIJST_VERVALLEN = weggehaalde nummers; LIJST_TERUG = per ongeluk weggehaald, terugzetten als dat vóór het tijdstip was; LIJST_AANVUL = lege velden aanvullen; LIJST_VERBETER = [veld, oud, nieuw] als er nog precies oud staat)
+  (dagen waarschuwen, standaard 30), notitie, hist [{t, tot, door, opm, bestanden [{id d_..., naam}]}]}; de nieuwste hist bepaalt tot. De startmachines hebben vaste id's v1..v17. De machinelijst van de werkplaats (MACHINELIJST in index.html, 246 stuks; LIJST_VERVALLEN = weggehaalde nummers; LIJST_TERUG = per ongeluk weggehaald, terugzetten als dat vóór het tijdstip was; LIJST_AANVUL = lege velden aanvullen; LIJST_VERBETER = [veld, oud, nieuw] als er nog precies oud staat; LIJST_ARCHIEF = naar het archief, ook terugzetten als weggehaald).
+  Machines met archief staan alleen in het tabje Ingeruild (niet in Alles, zoeken, melden, aan de beurt, PDF, ochtendmelding
   wordt één keer per apparaat ingelezen (lijstInlezen, sleutel wpbLijst = LIJST_VERSIE): bestaande machines krijgen via
   kenteken/LIJST_KOPPEL/naam alleen nr, model, bouwjaar en lege kentekens; nieuwe krijgen id n<nr> met g = 1. Met groep pas
   na een geslaagde sync. Categorieën: CATS; UREN_CATS krijgen standaard een urenteller. meta[id] = {s: soort, g:

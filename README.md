@@ -19,6 +19,8 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   Machines die er al in stonden hielden hun naam, storingen en beurten.
 - Tabjes per categorie: Trekkers, Kranen, Shovels, Auto's, Wagens, Werktuigen, Aanbouwdelen, Winterdienst, Klein
   materieel, Overig. Binnen een categorie op machinenummer.
+- **Ingeruild / niet meer in gebruik**: vinkje bij Bewerken. De machine verdwijnt uit de lijsten, het zoeken, storing
+  melden en de meldingen, maar blijft met zijn geschiedenis in het tabje **Ingeruild** (achteraan). Vinkje uit = terug.
 - **Zoeken** (bovenaan in Machines en bij storing melden): op nummer, naam, soort, merk/type of kenteken (met of zonder
   streepjes), meerdere woorden mag ("valtra t214"). Enter bij één resultaat opent hem, Esc maakt het veld leeg.
 - Per machine: urenstand, open storingen, hoe vaak gemeld dit jaar, onderhoud en de geschiedenis (storingen en
