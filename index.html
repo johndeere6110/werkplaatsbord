@@ -288,7 +288,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 26; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 27; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -630,7 +630,9 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 3; // 3: Amazone-strooiers 1321 en 1322 erbij
+const LIJST_VERSIE = 4; // 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug
+// Per ongeluk weggehaald: terugzetten, maar alleen als het weghalen vóór dit tijdstip was (later weghalen blijft weg)
+const LIJST_TERUG = { "0715": Date.parse("2026-11-27T15:00:00Z") };
 // Uit de lijst gehaald (dubbel: 1424 Citroën ë Joost = 1419 ë-Berlingo VVB-09-F). Al ingelezen? Dan weg, als er nog niks bij staat.
 const LIJST_VERVALLEN = ["1424"];
 // Eén keer per apparaat (wpbLijst): de machinelijst van de werkplaats erin zetten. Met de groep pas na een geslaagde
@@ -661,6 +663,12 @@ function lijstInlezen() {
     db.machines.push({ id, nr: r[0], naam: r[1], kenteken: r[2], type: r[3], model: r[4], bouwjaar: r[5], cat: CATS[r[6]], urenteller: !!r[7], uren: null, interval: {} });
     meta[id] = { s: "machine", g: 1 };
     if (groepAan()) dirty.add(id);
+    veranderd = true;
+  }
+  for (const [nr, voor] of Object.entries(LIJST_TERUG)) {
+    const id = "n" + nr, r = MACHINELIJST.find(x => x[0] === nr), mt = meta[id];
+    if (!r || db.machines.some(m => m.nr === nr) || !mt || !mt.weg || mt.g > voor) continue;
+    wijzig("machine", { id, nr: r[0], naam: r[1], kenteken: r[2], type: r[3], model: r[4], bouwjaar: r[5], cat: CATS[r[6]], urenteller: !!r[7], uren: null, interval: {} });
     veranderd = true;
   }
   for (const nr of LIJST_VERVALLEN) {
