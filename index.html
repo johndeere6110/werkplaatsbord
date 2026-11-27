@@ -287,7 +287,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 21; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 22; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1189,7 +1189,7 @@ function machineDetail(mid) {
   const s = ohStatus(m), lo = lastOh(mid), ks = keuringenVan(mid);
   const tl = [...ms.map(x => ({ t: x.t, k: "m", x })), ...db.onderhoud.filter(o => o.machineId === mid).map(o => ({ t: o.t, k: "o", x: o }))].sort((a, b) => b.t - a.t);
   const tlHTML = tl.length ? tl.map(e => e.k === "o"
-    ? `<div class="h"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div></div>`
+    ? `<button type="button" class="h hb" data-oh="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.wat)}</p><div class="meta"><span class="chip oh">Onderhoud</span>${e.x.uren != null ? `<span>${nf(e.x.uren)} uur</span>` : ""}<span>${esc(e.x.door)}</span></div></div><span class="go" aria-hidden="true">›</span></button>`
     : `<button type="button" class="h hb" data-mid="${esc(e.x.id)}"><span class="d">${fmtDate(e.t)}</span><div><p>${esc(e.x.tekst)}</p><div class="meta"><span class="chip ${e.x.status === "klaar" ? "klaar" : "open"}">${STAT[e.x.status] || "Open"}</span>${e.x.prio === "dringend" ? '<span class="chip dringend">Dringend</span>' : ""}<span>${esc(e.x.door)}${e.x.klaarDoor ? " → " + esc(e.x.klaarDoor) : ""}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")
     : '<p class="empty">Nog niks vastgelegd.</p>';
   openSheet(`${head(nrNaam(m))}
@@ -1227,36 +1227,42 @@ function machineDetail(mid) {
     ov.querySelector("#kNieuw").onclick = () => keuringForm(mid, null);
     ov.querySelectorAll("[data-keur]").forEach(b => b.onclick = () => keuringDetail(b.dataset.keur));
     ov.querySelectorAll("[data-mid]").forEach(b => b.onclick = () => detail(b.dataset.mid));
+    ov.querySelectorAll("[data-oh]").forEach(b => b.onclick = () => ohForm(mid, b.dataset.oh));
     ov.querySelector("#ohDone").onclick = () => ohForm(mid);
     const lb = ov.querySelector("#lbIn"); lb && (lb.onclick = () => instelForm([mid], 0));
     const u = ov.querySelector("#urenUpd"); u && (u.onclick = () => urenForm(mid));
   });
 }
 
-function ohForm(mid) {
-  const m = mach(mid); const today = new Date().toISOString().slice(0, 10);
-  openSheet(`${head("Onderhoud gedaan")}
-    <p class="hint" style="margin-top:-8px">${esc(m.naam)}</p>
+// Onderhoud vastleggen (oid leeg) of een vastgelegde beurt bewerken/verwijderen
+function ohForm(mid, oid) {
+  const m = mach(mid), o = oid ? db.onderhoud.find(x => x.id === oid) : null, today = isoDag(Date.now());
+  if (oid && !o) return;
+  openSheet(`${head(o ? "Beurt bewerken" : "Onderhoud gedaan")}
+    <p class="hint" style="margin-top:-8px">${nrNaam(m)}</p>
     <div class="two">
-      <div class="field"><label for="od">Datum</label><input id="od" type="date" value="${today}" max="${today}"></div>
-      ${m.urenteller ? `<div class="field"><label for="ou">Urenstand</label><input id="ou" type="text" inputmode="numeric" value="${m.uren ?? ""}"></div>` : "<div></div>"}
+      <div class="field"><label for="od">Datum</label><input id="od" type="date" value="${o ? isoDag(o.t) : today}" max="${today}"></div>
+      ${m.urenteller ? `<div class="field"><label for="ou">Urenstand</label><input id="ou" type="text" inputmode="numeric" value="${o ? o.uren ?? "" : m.uren ?? ""}"></div>` : "<div></div>"}
     </div>
-    <div class="field"><label for="ow">Wat is er gedaan?</label><textarea id="ow" placeholder="Bijv. 500-urenbeurt: olie, filters, vetten"></textarea></div>
-    <div class="field"><label for="odoor">Gedaan door</label><input id="odoor" type="text" value="${esc(me)}"></div>
+    <div class="field"><label for="ow">Wat is er gedaan?</label><textarea id="ow" placeholder="Bijv. 500-urenbeurt: olie, filters, vetten">${esc(o ? o.wat : "")}</textarea></div>
+    <div class="field"><label for="odoor">Gedaan door</label><input id="odoor" type="text" value="${esc(o ? o.door : me)}"></div>
     <p class="err" id="err" hidden></p>
-    <button class="btn primary groot" id="oOk">Opslaan</button>`, ov => {
+    <button class="btn primary groot" id="oOk">Opslaan</button>
+    ${o ? '<button class="btn warn" id="oDel">Beurt verwijderen</button>' : ""}`, ov => {
     ov.querySelector("#oOk").onclick = () => {
       const d = ov.querySelector("#od").value, wat = ov.querySelector("#ow").value.trim(), door = ov.querySelector("#odoor").value.trim();
       const u = m.urenteller ? numOrNull(ov.querySelector("#ou").value) : null;
       const err = ov.querySelector("#err"); const fail = t => { err.textContent = t; err.hidden = false; };
       if (!d) return fail("Kies een datum.");
-      if (m.urenteller && u == null) return fail("Vul de urenstand in, anders kan de volgende beurt niet berekend worden.");
+      if (m.urenteller && u == null && !(o && o.uren == null)) return fail("Vul de urenstand in, anders kan de volgende beurt niet berekend worden.");
       if (!door) return fail("Vul in wie het gedaan heeft.");
-      if (door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
-      const ts = Math.min(new Date(d + "T12:00").getTime(), Date.now());
-      wijzig("onderhoud", { id: nieuwId("o_"), machineId: mid, t: ts, uren: u, wat: wat || "Onderhoud", door });
-      bumpUren(mid, u); render(); machineDetail(mid); toast("Onderhoud vastgelegd");
+      if (!o && door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const ts = Math.min(vanDag(d), Date.now());
+      wijzig("onderhoud", Object.assign({}, o || { id: nieuwId("o_"), machineId: mid }, { t: ts, uren: u, wat: wat || "Onderhoud", door }));
+      bumpUren(mid, u); render(); machineDetail(mid); toast(o ? "Beurt aangepast" : "Onderhoud vastgelegd");
     };
+    const del = ov.querySelector("#oDel");
+    del && armed(del, "Zeker weten? Tik nog een keer", () => { verwijder("onderhoud", oid); render(); machineDetail(mid); toast("Beurt verwijderd"); });
   });
 }
 
@@ -1404,9 +1410,10 @@ function keuringDetail(kid) {
     </div>
     <div class="actions"><button class="btn done" id="kGekeurd">Gekeurd</button><button class="btn" id="kEdit">Bewerken</button><button class="btn warn" id="kDel">Verwijderen</button></div>
     <span class="lbl">Eerder gekeurd</span>
-    ${hist.length ? `<div class="hist">${hist.map(h => `<div class="h"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span></div></div></div>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
+    ${hist.length ? `<div class="hist">${hist.map((h, i) => `<button type="button" class="h hb" data-hi="${i}"><span class="d">${fmtDate(h.t)}</span><div><p>Geldig tot ${fmtDate(h.tot)}${h.opm ? " · " + esc(h.opm) : ""}</p><div class="meta"><span>${esc(h.door)}</span></div></div><span class="go" aria-hidden="true">›</span></button>`).join("")}</div>` : '<p class="hint">Nog niks vastgelegd.</p>'}
     ${m ? `<button class="linkish" data-terug="1">Terug naar ${esc(m.naam)}</button>` : ""}`, ov => {
     ov.querySelector("#kGekeurd").onclick = () => gekeurdForm(kid);
+    ov.querySelectorAll("[data-hi]").forEach(b => b.onclick = () => gekeurdForm(kid, +b.dataset.hi));
     ov.querySelector("#kEdit").onclick = () => keuringForm(k.machineId, kid);
     const t = ov.querySelector("[data-terug]"); t && (t.onclick = () => machineDetail(k.machineId));
     armed(ov.querySelector("#kDel"), "Zeker weten? Tik nog een keer", () => { verwijder("keuring", kid); render(); m ? machineDetail(m.id) : closeSheet(); toast("Keuring verwijderd"); });
@@ -1452,35 +1459,46 @@ function keuringForm(mid, kid) {
     if (!k && window.matchMedia && matchMedia("(pointer: fine)").matches) soortI.focus();
   });
 }
-function gekeurdForm(kid) {
+// Keuring vastleggen (hi leeg) of een eerdere keuring (hist[hi]) bewerken/verwijderen.
+// De bovenste (nieuwste) bepaalt "geldig tot" van de keuring.
+function gekeurdForm(kid, hi) {
   const k = db.keuringen.find(x => x.id === kid); if (!k) return;
+  const h0 = hi != null ? (k.hist || [])[hi] : null; if (hi != null && !h0) return;
   const m = mach(k.machineId), vandaag = isoDag(Date.now());
   const voorstel = d => k.maanden ? isoDag(addMonths(vanDag(d), k.maanden)) : "";
-  openSheet(`${head("Gekeurd")}
-    <p class="hint" style="margin-top:-8px">${esc(k.soort)} · ${esc(m ? m.naam : "?")}</p>
+  const nieuweTot = hist => hist.length ? hist.reduce((a, b) => b.t > a.t ? b : a).tot : k.tot;
+  openSheet(`${head(h0 ? "Keuring bewerken" : "Gekeurd")}
+    <p class="hint" style="margin-top:-8px">${esc(k.soort)} · ${m ? nrNaam(m) : "?"}</p>
     <div class="two">
-      <div class="field"><label for="gd">Gekeurd op</label><input id="gd" type="date" value="${vandaag}" max="${vandaag}"></div>
-      <div class="field"><label for="gt">Nu geldig tot</label><input id="gt" type="date" value="${voorstel(vandaag)}"></div>
+      <div class="field"><label for="gd">Gekeurd op</label><input id="gd" type="date" value="${h0 ? isoDag(h0.t) : vandaag}" max="${vandaag}"></div>
+      <div class="field"><label for="gt">${h0 ? "Geldig tot" : "Nu geldig tot"}</label><input id="gt" type="date" value="${h0 ? isoDag(h0.tot) : voorstel(vandaag)}"></div>
     </div>
-    <div class="field"><label for="go">Opmerking <span>(optioneel)</span></label><input id="go" type="text" placeholder="Bijv. goedgekeurd, ketting vervangen"></div>
-    <div class="field"><label for="gdoor">Door</label><input id="gdoor" type="text" value="${esc(me)}"></div>
+    <div class="field"><label for="go">Opmerking <span>(optioneel)</span></label><input id="go" type="text" value="${esc(h0 ? h0.opm || "" : "")}" placeholder="Bijv. goedgekeurd, ketting vervangen"></div>
+    <div class="field"><label for="gdoor">Door</label><input id="gdoor" type="text" value="${esc(h0 ? h0.door : me)}"></div>
     <p class="err" id="err" hidden></p>
-    <button class="btn primary groot" id="gOk">Opslaan</button>`, ov => {
+    <button class="btn primary groot" id="gOk">Opslaan</button>
+    ${h0 ? '<button class="btn warn" id="gDel">Deze keuring verwijderen</button>' : ""}`, ov => {
     const gd = ov.querySelector("#gd"), gt = ov.querySelector("#gt");
-    let totZelf = false;
+    let totZelf = !!h0;
     gt.addEventListener("input", () => totZelf = true);
     gd.addEventListener("input", () => { if (!totZelf && gd.value) gt.value = voorstel(gd.value); });
     ov.querySelector("#gOk").onclick = () => {
       const err = ov.querySelector("#err"), fail = t => { err.textContent = t; err.hidden = false; };
       const t = vanDag(gd.value), tot = vanDag(gt.value), door = ov.querySelector("#gdoor").value.trim();
       if (!t) return fail("Kies de datum van de keuring.");
-      if (!tot) return fail("Vul in tot wanneer hij nu geldig is.");
+      if (!tot) return fail("Vul in tot wanneer hij geldig is.");
       if (tot <= t) return fail("Geldig tot moet na de keuringsdatum liggen.");
       if (!door) return fail("Vul in wie het gedaan of geregeld heeft.");
-      if (door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
-      const hist = [{ t: Math.min(t, Date.now()), tot, door, opm: ov.querySelector("#go").value.trim() }, ...(k.hist || [])].slice(0, 50);
-      wijzig("keuring", Object.assign({}, k, { tot, hist })); render(); keuringDetail(kid); toast("Keuring vastgelegd");
+      if (!h0 && door !== me) { me = door; store.set("wpbNaam", me); setWho(); }
+      const regel = { t: Math.min(t, Date.now()), tot, door, opm: ov.querySelector("#go").value.trim() };
+      const hist = (h0 ? (k.hist || []).map((x, i) => i === hi ? regel : x) : [regel, ...(k.hist || [])]).sort((a, b) => b.t - a.t).slice(0, 50);
+      wijzig("keuring", Object.assign({}, k, { tot: nieuweTot(hist), hist })); render(); keuringDetail(kid); toast(h0 ? "Keuring aangepast" : "Keuring vastgelegd");
     };
+    const del = ov.querySelector("#gDel");
+    del && armed(del, "Zeker weten? Tik nog een keer", () => {
+      const hist = (k.hist || []).filter((x, i) => i !== hi);
+      wijzig("keuring", Object.assign({}, k, { tot: nieuweTot(hist), hist })); render(); keuringDetail(kid); toast("Keuring verwijderd");
+    });
   });
 }
 

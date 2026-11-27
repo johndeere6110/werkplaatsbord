@@ -23,7 +23,7 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   streepjes), meerdere woorden mag ("valtra t214"). Enter bij één resultaat opent hem, Esc maakt het veld leeg.
 - Per machine: urenstand, open storingen, hoe vaak gemeld dit jaar, onderhoud en de geschiedenis (storingen en
   onderhoud door elkaar; tik een storing aan om hem te openen).
-- **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Met een interval (elke … uur en/of elke … maanden, wat
+- **Onderhoud gedaan** (datum, urenstand, wat er gedaan is). Een beurt in de geschiedenis aantikken = bewerken of verwijderen. Met een interval (elke … uur en/of elke … maanden, wat
   het eerst komt) rekent de app uit wanneer de volgende beurt is; bovenaan staat **Onderhoud aan de beurt**.
 - **Bewerken**: naam, machinenummer, bouwjaar, merk en type, categorie, soort, kenteken, urenteller, interval, of de machine verwijderen.
 - **Laatste beurt invullen** (bovenaan in Machines, of bij een machine): urenstand nu, de laatste beurt (datum,
@@ -43,6 +43,7 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   maanden, hoeveel dagen van tevoren waarschuwen (standaard 30) en een notitie. Weet je alleen wanneer hij gekeurd is,
   dan rekent de app "geldig tot" uit.
 - **Gekeurd**: datum, nieuwe "geldig tot" (voorgesteld met het interval), opmerking. Eerdere keuringen blijven staan.
+  Tik een eerdere keuring aan om hem te bewerken of te verwijderen; de nieuwste bepaalt "geldig tot".
 - Bovenaan in Machines staat **Keuringen** met wat verlopen is of binnenkort verloopt; op de tegel een label.
 - Losse dingen (brandblussers, ladders, stellingen): maak er een machine van in de categorie Overig.
 - Keuringen staan ook in de PDF en de Excel-export.
