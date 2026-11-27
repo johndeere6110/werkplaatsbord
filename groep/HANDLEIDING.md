@@ -75,6 +75,9 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
     (tot hij de app weer opent: dan meldt hij zich vanzelf opnieuw aan, als meldingen daar nog aan staan).
   - Scripteigenschappen **VAPID_D** en **VAPID_PUB** zijn het sleutelpaar. Niet aanpassen of weggooien: dan moet iedereen
     meldingen opnieuw aanzetten. **BERICHTEN** en **GEMELD** houdt het script zelf bij.
+- **Meldingstijd per telefoon** (vanaf app-versie 37): na het plakken van het script **meldingenInstellen** nog één keer
+  uitvoeren. Dan controleert het script elk uur en krijgt iedereen de melding op de tijd die hij in de app koos. Zonder
+  dat blijft het één keer per dag rond 7 uur, voor iedereen.
 - **Keuringsrapporten** (PDF of foto, vanaf app-versie 23) komen in dezelfde Drive-map als de foto's, als <id>.pdf; in de
   beschrijving van het bestand staat de machine, de keuring en de datum. Met een ouder script blijven ze op de telefoon
   tot het script is bijgewerkt. **fotosOpruimen** laat rapporten staan.

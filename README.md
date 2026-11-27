@@ -63,7 +63,7 @@ je de geschiedenis, de urenstand en wanneer het onderhoud weer aan de beurt is. 
   niet voor wie hem meldt) en 's ochtends tussen 7 en 8 uur bij **keuringen** die gaan verlopen en **onderhoud** dat te laat
   of binnenkort is. Per keuring komt een melding bij de eerste waarschuwing, 14 en 7 dagen van tevoren, de dag ervoor, op de
   dag zelf en als hij verlopen is; niet elke dag opnieuw.
-- **Op welke dagen**: per telefoon (bv. ma t/m vr). Wat er op je vrije dagen gebeurt, krijg je de eerstvolgende dag dat je
+- **Op welke dagen en hoe laat**: per telefoon (bv. ma t/m vr om 6:00). Wat er op je vrije dagen gebeurt, krijg je de eerstvolgende dag dat je
   aan staat. De testmelding komt altijd.
 - **Testmelding** om te kijken of het werkt. Werkt op Android; op iPhone alleen vanaf het beginscherm (iOS 16.4+).
 - Moet één keer aangezet worden in het Google-script: zie [groep/HANDLEIDING.md](groep/HANDLEIDING.md).

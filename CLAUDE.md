@@ -36,7 +36,8 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   code, apparaat en laatst staan in de cache "wpb-push" (sleutel "config", gezet door de app). Abonnementen in blad
   "telefoons"; POST {abonnement}, {afmelden}, {testmelding}; GET met &apparaat= geeft aangemeld (false = opnieuw
   aanvragen). Elke POST stuurt apparaat mee (geen push naar jezelf). Trigger dagelijks() via meldingenInstellen().
-  Blad telefoons heeft ook dagen en laatste push: geen push op een vrije dag; dagelijks() pusht elke telefoon die vandaag aan
+  Blad telefoons heeft ook dagen, laatste push en uur (tijd van de dagelijkse melding; trigger elk uur, scripteigenschap
+  ELK_UUR = 1 gezet door meldingenInstellen, anders krijgt iedereen hem bij de oude 7-uur-trigger): geen push op een vrije dag; dagelijks() pusht elke telefoon die vandaag aan
   staat en nog berichten heeft van na zijn laatste push (dus ook wat er op zijn vrije dagen gebeurde).
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.

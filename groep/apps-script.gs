@@ -214,7 +214,14 @@ function onEdit(e) {
 // ---------- Pushmeldingen ----------
 const DAG = 86400000;
 const TELBLAD = 'telefoons';
-const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt', 'dagen', 'laatste push'];
+const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt', 'dagen', 'laatste push', 'uur'];
+// uur: hoe laat de ochtendmelding komt (0-23, leeg = 7). Werkt pas als de trigger elk uur draait (meldingenInstellen,
+// zet scripteigenschap ELK_UUR); met de oude trigger (één keer om 7 uur) krijgt iedereen hem dan.
+function uurOk_(r) {
+  if (PropertiesService.getScriptProperties().getProperty('ELK_UUR') !== '1') return true;
+  const u = String(r[10]).trim() === '' || r[10] == null ? 7 : Number(r[10]);
+  return Number(Utilities.formatDate(new Date(), 'Europe/Amsterdam', 'H')) === u;
+}
 // dagen: cijfers 1 (ma) t/m 7 (zo) waarop deze telefoon meldingen wil; leeg = elke dag
 function vandaagDag_() { return Utilities.formatDate(new Date(), 'Europe/Amsterdam', 'u'); }
 function dagOk_(r) { const d = String(r[8] || '').trim(); return !d || d.indexOf(vandaagDag_()) >= 0; }
@@ -228,17 +235,19 @@ const SITE_URL = 'https://johndeere6110.github.io/werkplaatsbord/';
 // Eén keer met de hand uitvoeren: geeft het script toestemming om meldingen te versturen en zet de ochtendcontrole aan.
 function meldingenInstellen() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'dagelijks') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('dagelijks').timeBased().everyDays(1).atHour(7).inTimezone('Europe/Amsterdam').create();
+  ScriptApp.newTrigger('dagelijks').timeBased().everyHours(1).create(); // elk uur: iedereen krijgt hem op zijn eigen tijd
+  PropertiesService.getScriptProperties().setProperty('ELK_UUR', '1');
   vapid_(); blad_(TELBLAD, TELKOP);
-  Logger.log('Klaar: elke ochtend tussen 7 en 8 uur een controle. Implementeer nu een nieuwe versie (zie handleiding).');
+  Logger.log('Klaar: elk uur een controle, iedereen krijgt de melding op zijn eigen tijd. Implementeer nu een nieuwe versie (zie handleiding).');
 }
 
 function abonneer_(app, a) {
   if (!/^a_[A-Za-z0-9]{4,40}$/.test(app) || !a || !/^https:\/\/[^\s"]{10,800}$/.test(String(a.endpoint || ''))) return { ok: false, fout: 'abonnement' };
   const sh = telBlad_(), v = sh.getDataRange().getValues();
   const dagen = /^[1-7]{1,7}$/.test(String(a.dagen || '')) ? String(a.dagen) : '1234567';
+  const uur = /^\d{1,2}$/.test(String(a.uur)) && Number(a.uur) < 24 ? Number(a.uur) : 7;
   const rij = [app, String(a.naam || '').slice(0, 40), String(a.endpoint), String(a.p256dh || '').slice(0, 200), String(a.auth || '').slice(0, 100),
-    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date(), dagen, Date.now()];
+    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date(), dagen, Date.now(), uur];
   for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) { rij[9] = Number(v[i][9]) || Date.now(); sh.getRange(i + 1, 1, 1, TELKOP.length).setValues([rij]); return { ok: true }; }
   sh.appendRow(rij);
   return { ok: true };
@@ -340,7 +349,7 @@ function dagelijks() {
   // Elke telefoon die vandaag aan staat en nog berichten heeft die hij niet kreeg (ook van zijn vrije dagen) krijgt een push
   let l = []; try { l = JSON.parse(props.getProperty('BERICHTEN') || '[]'); } catch (x) {}
   pushNaar_(function (r) {
-    if (!dagOk_(r)) return false;
+    if (!dagOk_(r) || !uurOk_(r)) return false;
     const sinds = Number(r[9]) || (Date.now() - DAG), app = String(r[0]);
     return l.some(function (b) { return b.t > sinds && !b.voor && (b.soort === 'dringend' ? String(r[5]) === 'ja' && b.niet !== app : String(r[6]) === 'ja'); });
   });

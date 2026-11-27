@@ -180,6 +180,7 @@ h1 img{width:28px;height:28px;border-radius:7px}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 input[type=text],input[type=search],input[type=url],input[type=date],textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;min-height:46px;font-size:16px}
 textarea{min-height:84px;resize:vertical}
+select.kies{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;min-height:46px;font-size:16px;color:var(--fg)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .check{display:flex;gap:10px;align-items:center;font-size:.95rem}
 .check input{width:22px;height:22px}
@@ -291,7 +292,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 36; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 37; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -379,6 +380,7 @@ const groepAan = () => !!(groep.aan && groep.code && groepUrl());
 const apparaatId = (() => { let a = store.get("wpbApparaat", ""); if (!/^a_[A-Za-z0-9]+$/.test(a)) { a = "a_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); store.set("wpbApparaat", a); } return a; })();
 let push = store.get("wpbPush", { aan: false, dringend: true, keuring: true });
 const DAGEN = [["1", "ma"], ["2", "di"], ["3", "wo"], ["4", "do"], ["5", "vr"], ["6", "za"], ["7", "zo"]];
+const pushUur = () => Number.isInteger(push.uur) && push.uur >= 0 && push.uur < 24 ? push.uur : 7;
 const pushDagen = () => /^[1-7]{1,7}$/.test(push.dagen || "") ? push.dagen : "1234567";
 
 const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categorie (index in CATS), urenteller]
@@ -1024,9 +1026,9 @@ async function pushAan(keuze, stil) {
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(sync.vapid) });
   const j = sub.toJSON();
   await pushConfig(!push.aan);
-  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring, dagen: keuze.dagen || pushDagen() } });
+  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur() } });
   if (!r || !r.ok) throw new Error("Aanmelden bij de groep lukte niet" + (r && r.fout ? " (" + r.fout + ")" : "") + ".");
-  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, dagen: keuze.dagen || pushDagen(), endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
+  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur(), endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
   store.set("wpbPush", push);
 }
 async function pushUit() {
@@ -1855,10 +1857,12 @@ function meldingenHTML() {
   if (!pushKan()) return `<p class="hint">${ios ? "Op een iPhone werken meldingen alleen als de app op het beginscherm staat (iOS 16.4 of nieuwer). Open hem dan vanaf het beginscherm." : "Deze browser kan geen meldingen ontvangen."}</p>`;
   if (!sync.vapid) return `<p class="hint">${sync.soorten ? "Het Google-script van de groep moet eerst bijgewerkt worden (zie handleiding)." : "Nog niet bijgewerkt met de groep. Probeer het zo nog eens."}</p>`;
   return `<label class="check"><input id="pD" type="checkbox" ${push.dringend !== false ? "checked" : ""}> Dringende storingen (meteen)</label>
-    <label class="check"><input id="pK" type="checkbox" ${push.keuring !== false ? "checked" : ""}> Keuringen en onderhoud (’s ochtends)</label>
+    <label class="check"><input id="pK" type="checkbox" ${push.keuring !== false ? "checked" : ""}> Keuringen en onderhoud (dagelijks)</label>
     <div class="field"><span class="lbl">Op welke dagen</span>
       <div class="cats wrap" id="pDag">${DAGEN.map(([n, l]) => `<button type="button" data-d="${n}" aria-pressed="${pushDagen().includes(n)}">${l}</button>`).join("")}</div>
       <p class="hint">Wat er op je vrije dagen gebeurt, krijg je de eerstvolgende dag dat je aan staat.</p></div>
+    <div class="field"><label for="pUur">Hoe laat <span>(keuringen en onderhoud; dringende storingen komen meteen)</span></label>
+      <select id="pUur" class="kies">${Array.from({ length: 18 }, (_, i) => i + 5).map(u => `<option value="${u}"${u === pushUur() ? " selected" : ""}>${u}:00</option>`).join("")}</select></div>
     ${push.aan ? '<p class="hint">Meldingen staan aan.</p>' : ""}
     <div class="actions"><button class="btn${push.aan ? "" : " primary"}" id="pAan" type="button">${push.aan ? "Keuze opslaan" : "Meldingen aanzetten"}</button>${push.aan ? '<button class="btn" id="pTest" type="button">Testmelding</button><button class="btn warn" id="pUit" type="button">Uitzetten</button>' : ""}</div>
     <p class="err" id="pErr" hidden></p>`;
@@ -1873,7 +1877,7 @@ function meldingenKnoppen(ov) {
     const dagen = [...ov.querySelectorAll('#pDag [aria-pressed="true"]')].map(b => b.dataset.d).join("");
     if (!dagen) return fout("Kies minstens één dag.");
     bezig(aan, true);
-    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked, dagen }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
+    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked, dagen, uur: Number(ov.querySelector("#pUur").value) }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
     catch (e) { fout(String(e && e.message || e)); bezig(aan, false); }
   };
   const t = ov.querySelector("#pTest");
