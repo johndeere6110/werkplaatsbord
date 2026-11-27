@@ -7,7 +7,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
 - Opslag: localStorage wordt gedeeld met de Perceelkaart en de Zaaihulp (zelfde github.io-domein). Alleen sleutels die
   met "wpb" beginnen: wpbData ({machines, meldingen, onderhoud, keuringen, meta, dirty}), wpbNaam, wpbGroep ({code, aan}),
   wpbGroepUrl, wpbLaatst, wpbFotoWacht (foto- en bestand-id's die nog naar de groep moeten), wpbGroepUitnodiging, wpbTipWeg (installatietip weggetikt), wpbApparaat (vast id a_... per apparaat), wpbLijst (machinelijst ingelezen), wpbPush
-  ({aan, dringend, keuring, endpoint, vapid, t}). Verander bestaande
+  ({aan, dringend, keuring, dagen ("1234567", 1 = ma), endpoint, vapid, t}). Verander bestaande
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
@@ -36,6 +36,8 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   code, apparaat en laatst staan in de cache "wpb-push" (sleutel "config", gezet door de app). Abonnementen in blad
   "telefoons"; POST {abonnement}, {afmelden}, {testmelding}; GET met &apparaat= geeft aangemeld (false = opnieuw
   aanvragen). Elke POST stuurt apparaat mee (geen push naar jezelf). Trigger dagelijks() via meldingenInstellen().
+  Blad telefoons heeft ook dagen en laatste push: geen push op een vrije dag; dagelijks() pusht elke telefoon die vandaag aan
+  staat en nog berichten heeft van na zijn laatste push (dus ook wat er op zijn vrije dagen gebeurde).
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.
 - Gebruik geen alert(), confirm() of prompt(); bevestigen met armed() (twee keer tikken) en foutteksten in het venster.

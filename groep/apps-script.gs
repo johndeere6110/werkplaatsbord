@@ -214,7 +214,15 @@ function onEdit(e) {
 // ---------- Pushmeldingen ----------
 const DAG = 86400000;
 const TELBLAD = 'telefoons';
-const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt'];
+const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt', 'dagen', 'laatste push'];
+// dagen: cijfers 1 (ma) t/m 7 (zo) waarop deze telefoon meldingen wil; leeg = elke dag
+function vandaagDag_() { return Utilities.formatDate(new Date(), 'Europe/Amsterdam', 'u'); }
+function dagOk_(r) { const d = String(r[8] || '').trim(); return !d || d.indexOf(vandaagDag_()) >= 0; }
+function telBlad_() { // oudere bladen hebben nog niet alle kolommen in de kop
+  const sh = blad_(TELBLAD, TELKOP);
+  if (sh.getRange(1, 1, 1, TELKOP.length).getValues()[0].join('|') !== TELKOP.join('|')) sh.getRange(1, 1, 1, TELKOP.length).setValues([TELKOP]);
+  return sh;
+}
 const SITE_URL = 'https://johndeere6110.github.io/werkplaatsbord/';
 
 // Eén keer met de hand uitvoeren: geeft het script toestemming om meldingen te versturen en zet de ochtendcontrole aan.
@@ -227,10 +235,11 @@ function meldingenInstellen() {
 
 function abonneer_(app, a) {
   if (!/^a_[A-Za-z0-9]{4,40}$/.test(app) || !a || !/^https:\/\/[^\s"]{10,800}$/.test(String(a.endpoint || ''))) return { ok: false, fout: 'abonnement' };
-  const sh = blad_(TELBLAD, TELKOP), v = sh.getDataRange().getValues();
+  const sh = telBlad_(), v = sh.getDataRange().getValues();
+  const dagen = /^[1-7]{1,7}$/.test(String(a.dagen || '')) ? String(a.dagen) : '1234567';
   const rij = [app, String(a.naam || '').slice(0, 40), String(a.endpoint), String(a.p256dh || '').slice(0, 200), String(a.auth || '').slice(0, 100),
-    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date()];
-  for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) { sh.getRange(i + 1, 1, 1, TELKOP.length).setValues([rij]); return { ok: true }; }
+    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date(), dagen, Date.now()];
+  for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) { rij[9] = Number(v[i][9]) || Date.now(); sh.getRange(i + 1, 1, 1, TELKOP.length).setValues([rij]); return { ok: true }; }
   sh.appendRow(rij);
   return { ok: true };
 }
@@ -280,7 +289,7 @@ function meldDringend_(lijst, app, v) {
     const naam = d.machineId ? (machines[d.machineId] || 'Machine') : (d.machineVrij || 'Overig');
     bericht_({ soort: 'dringend', niet: app, titel: 'Dringend: ' + naam, tekst: (d.tekst || '') + (d.door ? ' (' + d.door + ')' : '') });
   });
-  pushNaar_(function (r) { return String(r[5]) === 'ja' && String(r[0]) !== app; });
+  pushNaar_(function (r) { return String(r[5]) === 'ja' && String(r[0]) !== app && dagOk_(r); });
 }
 
 // Elke ochtend (trigger van meldingenInstellen): keuringen die gaan verlopen en onderhoud dat te laat is.
@@ -327,16 +336,21 @@ function dagelijks() {
     if (lvl < 2) melden('o|' + id + '|' + l.id, lvl, m.naam + ': onderhoud ' + (lvl === 0 ? 'te laat' : 'binnenkort') + ' (' + delen.join(' of ') + ')');
   });
   props.setProperty('GEMELD', JSON.stringify(nieuw));
-  if (!regels.length) return;
-  bericht_({ soort: 'keuring', titel: regels.length === 1 ? 'Werkplaats: let op' : 'Werkplaats: ' + regels.length + ' dingen', tekst: regels.join('\n') });
-  pushNaar_(function (r) { return String(r[6]) === 'ja'; });
+  if (regels.length) bericht_({ soort: 'keuring', titel: regels.length === 1 ? 'Werkplaats: let op' : 'Werkplaats: ' + regels.length + ' dingen', tekst: regels.join('\n') });
+  // Elke telefoon die vandaag aan staat en nog berichten heeft die hij niet kreeg (ook van zijn vrije dagen) krijgt een push
+  let l = []; try { l = JSON.parse(props.getProperty('BERICHTEN') || '[]'); } catch (x) {}
+  pushNaar_(function (r) {
+    if (!dagOk_(r)) return false;
+    const sinds = Number(r[9]) || (Date.now() - DAG), app = String(r[0]);
+    return l.some(function (b) { return b.t > sinds && !b.voor && (b.soort === 'dringend' ? String(r[5]) === 'ja' && b.niet !== app : String(r[6]) === 'ja'); });
+  });
 }
 function dagNr_(ts) { return Math.round(Date.parse(Utilities.formatDate(new Date(ts), 'Europe/Amsterdam', 'yyyy-MM-dd') + 'T00:00:00Z') / DAG); }
 function datum_(ts) { return Utilities.formatDate(new Date(ts), 'Europe/Amsterdam', 'd-M-yyyy'); }
 
 // Lege push naar de telefoons waarvoor wie(rij) true geeft. Weg-abonnementen (404/410) worden opgeruimd.
 function pushNaar_(wie) {
-  const sh = blad_(TELBLAD, TELKOP), v = sh.getDataRange().getValues(), doelen = [];
+  const sh = telBlad_(), v = sh.getDataRange().getValues(), doelen = [];
   for (let i = v.length - 1; i >= 1; i--) if (v[i][0] && v[i][2] && wie(v[i])) doelen.push({ rij: i + 1, endpoint: String(v[i][2]) });
   if (!doelen.length) return [];
   const sl = vapid_(), jwt = {};
@@ -347,6 +361,7 @@ function pushNaar_(wie) {
       headers: { Authorization: 'vapid t=' + jwt[aud] + ', k=' + sl.pub, TTL: '86400', Urgency: 'high' } };
   });
   const codes = UrlFetchApp.fetchAll(verzoeken).map(function (r) { return r.getResponseCode(); });
+  doelen.forEach(function (t, i) { if (codes[i] >= 200 && codes[i] < 300) sh.getRange(t.rij, 10).setValue(Date.now()); }); // laatste push
   doelen.forEach(function (t, i) { if (codes[i] === 404 || codes[i] === 410) sh.deleteRow(t.rij); }); // van onder naar boven
   return codes;
 }

@@ -291,7 +291,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 (function(){
 "use strict";
-const VERSIE = 35; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 36; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -378,6 +378,8 @@ const groepAan = () => !!(groep.aan && groep.code && groepUrl());
 // Pushmeldingen: vast id per apparaat (wpbApparaat) en de keuze van dit apparaat (wpbPush)
 const apparaatId = (() => { let a = store.get("wpbApparaat", ""); if (!/^a_[A-Za-z0-9]+$/.test(a)) { a = "a_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); store.set("wpbApparaat", a); } return a; })();
 let push = store.get("wpbPush", { aan: false, dringend: true, keuring: true });
+const DAGEN = [["1", "ma"], ["2", "di"], ["3", "wo"], ["4", "do"], ["5", "vr"], ["6", "za"], ["7", "zo"]];
+const pushDagen = () => /^[1-7]{1,7}$/.test(push.dagen || "") ? push.dagen : "1234567";
 
 const MACHINELIJST = [ // [nr, naam, kenteken, soort, merk/type, bouwjaar, categorie (index in CATS), urenteller]
   ["0100", "Hakenfrees Baselier (3,0m)", "", "Hakenfrees", "Baselier (3,0m)", "", 5, 0],
@@ -1022,9 +1024,9 @@ async function pushAan(keuze, stil) {
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(sync.vapid) });
   const j = sub.toJSON();
   await pushConfig(!push.aan);
-  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring } });
+  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring, dagen: keuze.dagen || pushDagen() } });
   if (!r || !r.ok) throw new Error("Aanmelden bij de groep lukte niet" + (r && r.fout ? " (" + r.fout + ")" : "") + ".");
-  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
+  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, dagen: keuze.dagen || pushDagen(), endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
   store.set("wpbPush", push);
 }
 async function pushUit() {
@@ -1854,6 +1856,9 @@ function meldingenHTML() {
   if (!sync.vapid) return `<p class="hint">${sync.soorten ? "Het Google-script van de groep moet eerst bijgewerkt worden (zie handleiding)." : "Nog niet bijgewerkt met de groep. Probeer het zo nog eens."}</p>`;
   return `<label class="check"><input id="pD" type="checkbox" ${push.dringend !== false ? "checked" : ""}> Dringende storingen (meteen)</label>
     <label class="check"><input id="pK" type="checkbox" ${push.keuring !== false ? "checked" : ""}> Keuringen en onderhoud (’s ochtends)</label>
+    <div class="field"><span class="lbl">Op welke dagen</span>
+      <div class="cats wrap" id="pDag">${DAGEN.map(([n, l]) => `<button type="button" data-d="${n}" aria-pressed="${pushDagen().includes(n)}">${l}</button>`).join("")}</div>
+      <p class="hint">Wat er op je vrije dagen gebeurt, krijg je de eerstvolgende dag dat je aan staat.</p></div>
     ${push.aan ? '<p class="hint">Meldingen staan aan.</p>' : ""}
     <div class="actions"><button class="btn${push.aan ? "" : " primary"}" id="pAan" type="button">${push.aan ? "Keuze opslaan" : "Meldingen aanzetten"}</button>${push.aan ? '<button class="btn" id="pTest" type="button">Testmelding</button><button class="btn warn" id="pUit" type="button">Uitzetten</button>' : ""}</div>
     <p class="err" id="pErr" hidden></p>`;
@@ -1862,9 +1867,13 @@ function meldingenKnoppen(ov) {
   const aan = ov.querySelector("#pAan"); if (!aan) return;
   const err = ov.querySelector("#pErr"), fout = t => { err.textContent = t; err.hidden = false; };
   const bezig = (b, ja) => { b.disabled = ja; };
+  ov.querySelector("#pDag").addEventListener("click", e => { const b = e.target.closest("[data-d]"); if (b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); });
   aan.onclick = async () => {
-    err.hidden = true; bezig(aan, true);
-    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
+    err.hidden = true;
+    const dagen = [...ov.querySelectorAll('#pDag [aria-pressed="true"]')].map(b => b.dataset.d).join("");
+    if (!dagen) return fout("Kies minstens één dag.");
+    bezig(aan, true);
+    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked, dagen }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
     catch (e) { fout(String(e && e.message || e)); bezig(aan, false); }
   };
   const t = ov.querySelector("#pTest");
