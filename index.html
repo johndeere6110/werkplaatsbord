@@ -292,7 +292,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 39; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 40; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -729,7 +729,7 @@ function lijstInlezen() {
 // Eén keer per apparaat (wpbExcel): de onderhoudsschema's uit Excel (excel-import.json) inlezen. Zelfde opzet als de
 // machinelijst: vaste id's (ox...) met g = 1, dus nooit dubbel en wat al in de groep staat wint. Een beurt die al binnen
 // 14 dagen in de app staat wordt overgeslagen. Chassisnummer en info alleen aanvullen.
-const EXCEL_VERSIE = 2; // 2: schema Valtra T174A (0714) erbij
+const EXCEL_VERSIE = 3; // 3: laatste beurt A93 (0700, 17-11-2025); 2: schema Valtra T174A (0714) erbij
 let excelBezig = false;
 function zetLokaal(soort, obj) { // met groep: gewoon wijzigen; zonder groep: niet "nieuwer" maken dan wat later uit de groep komt
   if (groepAan()) return wijzig(soort, obj);
