@@ -292,7 +292,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 41; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 42; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -770,7 +770,7 @@ async function excelInlezen() {
     // urenstand = die van de nieuwste regel met uren uit Excel, als die hoger is (niet bij 1104: daar is Excel teller + 370)
     for (const [mid, l] of Object.entries(laatste)) {
       const m = mach(mid);
-      if (m && m.urenteller && m.nr !== "1104" && (m.uren == null || l.uren > m.uren)) zetLokaal("machine", Object.assign({}, m, { uren: l.uren }));
+      if (m && m.urenteller && m.nr !== "1104" && (m.uren == null || l.uren > m.uren)) zetLokaal("machine", Object.assign({}, m, { uren: l.uren, urenT: l.t }));
     }
     store.set("wpbExcel", EXCEL_VERSIE); bewaar(); planSync(); render();
     if (n) toast(n + " regels uit de Excel-schema's ingelezen");
@@ -841,11 +841,23 @@ function ohStatus(m) {
   // te laat: alleen wat te laat is; anders wat het eerst komt
   let txt = laat.length ? laat.join(" en ") : parts.join(" of ") || "Urenstand onbekend";
   // urenstand nog dezelfde als bij de beurt (en die is al even geleden): dan zegt "nog ... uur" weinig
-  if (iv.uren && m.uren != null && m.uren === last.uren && Date.now() - last.t > 30 * DAY) txt += " · urenstand niet bijgewerkt sinds de beurt";
+  const ud = urenDatum(m);
+  if (iv.uren && m.uren != null && ud && Date.now() - ud > 30 * DAY) txt += ` · urenstand van ${fmtDate(ud)}`;
   return { lvl, txt };
 }
 const ivTxt = iv => [iv.uren ? `elke ${nf(iv.uren)} uur` : "", iv.maanden ? `elke ${iv.maanden} maanden` : ""].filter(Boolean).join(" of ") || "niet ingesteld";
-function bumpUren(mid, u) { const m = mach(mid); if (m && u != null && !isNaN(u) && (m.uren == null || u > m.uren)) wijzig("machine", Object.assign({}, m, { uren: u })); }
+function bumpUren(mid, u, t = Date.now()) {
+  const m = mach(mid); if (!m || u == null || isNaN(u)) return;
+  if (m.uren == null || u > m.uren || (u === m.uren && t > (urenDatum(m) || 0))) wijzig("machine", Object.assign({}, m, { uren: u, urenT: Math.min(t, Date.now()) }));
+}
+// Wanneer is de urenstand voor het laatst opgenomen? urenT (sinds versie 42), anders de nieuwste beurt/storing met precies die stand
+function urenDatum(m) {
+  if (!m || m.uren == null) return null;
+  if (m.urenT) return m.urenT;
+  const t = [...db.onderhoud, ...db.meldingen].filter(x => x.machineId === m.id && x.uren === m.uren).map(x => x.t);
+  return t.length ? Math.max(...t) : null;
+}
+const urenVan = m => { const d = urenDatum(m); return d ? "stand van " + fmtDate(d) : "datum onbekend"; };
 
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2400); }
 function setWho() { $("#whoName").textContent = me || "Naam instellen"; }
@@ -1239,7 +1251,7 @@ function newMelding(preMach) {
       ov.querySelector("#fotos").innerHTML = st.fotos.map((f, i) => `<div class="fprev"><img src="${f.thumb}" alt="Foto ${i + 1}"><button type="button" data-rm="${i}" aria-label="Foto ${i + 1} weghalen">×</button></div>`).join("") +
         (st.fotos.length < MAXFOTO ? `<label class="fbtn" for="cam"><span><strong>Camera</strong>foto maken</span></label><label class="fbtn" for="gal"><span><strong>Galerij</strong>foto's kiezen</span></label>` : "");
     };
-    const drawUren = () => { const m = st.machineId && mach(st.machineId); urenF.hidden = !(m && m.urenteller); if (m && m.urenteller) urenI.placeholder = m.uren != null ? `Laatst bekend: ${nf(m.uren)}` : "Bijv. 4650"; };
+    const drawUren = () => { const m = st.machineId && mach(st.machineId); urenF.hidden = !(m && m.urenteller); if (m && m.urenteller) urenI.placeholder = m.uren != null ? `Laatst bekend: ${nf(m.uren)} (${urenVan(m)})` : "Bijv. 4650"; };
     const drawPick = () => {
       const s = q.value.trim().toLowerCase();
       ov.querySelector("#fcats").innerHTML = catChips(ordered, st.cat, "data-fc");
@@ -1277,7 +1289,7 @@ function newMelding(preMach) {
       if (st.overig) x.machineVrij = vr;
       if (st.fotos.length && ids.includes(st.fotos[0].id)) x.thumb = st.fotos[0].thumb;
       wijzig("storing", x);
-      if (st.machineId) bumpUren(st.machineId, u);
+      if (st.machineId) bumpUren(st.machineId, u, x.t);
       closeSheet(); view = "meldingen"; tab = st.prio; syncTabs(); render(); toast("Storing gemeld");
     };
   });
@@ -1328,7 +1340,7 @@ function machineDetail(mid) {
     ${m.archief ? `<p class="chip oud" style="justify-self:start">Ingeruild / niet meer in gebruik${archiefTxt(m) ? " · " + esc(archiefTxt(m)) : ""}</p>` : ""}
     ${m.info ? `<div class="kv"><div><span>Info</span><span style="white-space:pre-wrap;text-align:left">${esc(m.info)}</span></div></div>` : ""}
     <div class="stats">
-      <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? "urenstand" : "geen urenteller"}</span></div>
+      <div class="stat"><b>${m.urenteller ? (m.uren != null ? nf(m.uren) : "?") : "–"}</b><span>${m.urenteller ? (m.uren != null ? "urenstand · " + urenVan(m).replace("stand van ", "") : "urenstand") : "geen urenteller"}</span></div>
       <div class="stat"><b>${open}</b><span>nu open</span></div>
       <div class="stat"><b>${dit}</b><span>gemeld dit jaar</span></div>
     </div>
@@ -1399,7 +1411,7 @@ function ohForm(mid, oid) {
       const n = Object.assign({}, o || { id: nieuwId("o_"), machineId: mid }, { t: ts, uren: u, wat: wat || OHSOORT[srt], door });
       if (srt) n.soort = srt; else delete n.soort;
       wijzig("onderhoud", n);
-      bumpUren(mid, u); render(); machineDetail(mid); toast(o ? "Beurt aangepast" : "Onderhoud vastgelegd");
+      bumpUren(mid, u, ts); render(); machineDetail(mid); toast(o ? "Beurt aangepast" : "Onderhoud vastgelegd");
     };
     const del = ov.querySelector("#oDel");
     del && armed(del, "Zeker weten? Tik nog een keer", () => { verwijder("onderhoud", oid); render(); machineDetail(mid); toast("Beurt verwijderd"); });
@@ -1449,7 +1461,7 @@ function instelForm(lijst, i) {
       if (ivU && bu != null && nu == null) return fail("Vul ook de urenstand nu in.");
       if (bu != null && nu != null && bu > nu) return fail("De urenstand bij de laatste beurt is hoger dan nu. Kijk de getallen even na.");
       const nieuw = Object.assign({}, m, { interval: { uren: ivU, maanden: ivM } });
-      if (m.urenteller && nu != null) nieuw.uren = nu;
+      if (m.urenteller && nu != null && nu !== m.uren) { nieuw.uren = nu; nieuw.urenT = Date.now(); }
       if (nu !== m.uren || ivU !== (iv.uren ?? null) || ivM !== (iv.maanden ?? null)) wijzig("machine", nieuw);
       if (d && !lo) wijzig("onderhoud", { id: nieuwId("o_"), machineId: mid, t: Math.min(new Date(d + "T12:00").getTime(), Date.now()), uren: bu, wat: val("#iW").trim() || "Laatste beurt (achteraf ingevuld)", door: me || "?" });
       if (!rest) toast("Opgeslagen");
@@ -1461,7 +1473,7 @@ function instelForm(lijst, i) {
 function urenForm(mid) {
   const m = mach(mid);
   openSheet(`${head("Urenstand")}
-    <p class="hint" style="margin-top:-8px">${esc(m.naam)}${m.uren != null ? " · laatst bekend " + nf(m.uren) + " uur" : ""}</p>
+    <p class="hint" style="margin-top:-8px">${esc(m.naam)}${m.uren != null ? " · laatst bekend " + nf(m.uren) + " uur (" + urenVan(m) + ")" : ""}</p>
     <div class="field"><label for="uu">Huidige urenstand</label><input id="uu" type="text" inputmode="numeric" value="${m.uren ?? ""}"></div>
     <p class="err" id="err" hidden></p>
     <button class="btn primary groot" id="uOk">Opslaan</button>`, ov => {
@@ -1470,7 +1482,7 @@ function urenForm(mid) {
       const u = numOrNull(ov.querySelector("#uu").value), err = ov.querySelector("#err");
       if (u == null) { err.textContent = "Vul een getal in."; err.hidden = false; return; }
       if (m.uren != null && u < m.uren && !gewaarschuwd) { gewaarschuwd = true; err.textContent = `Dat is lager dan de laatst bekende stand (${nf(m.uren)}). Klopt het? Tik nog een keer op Opslaan om toch te bewaren.`; err.hidden = false; return; }
-      wijzig("machine", Object.assign({}, m, { uren: u })); render(); machineDetail(mid); toast("Urenstand bijgewerkt");
+      wijzig("machine", Object.assign({}, m, { uren: u, urenT: Date.now() })); render(); machineDetail(mid); toast("Urenstand bijgewerkt");
     };
   });
 }
@@ -1525,6 +1537,7 @@ function machineForm(mid) {
         uren: ut.checked ? numOrNull(ov.querySelector("#mu").value) : null,
         interval: { uren: ut.checked ? numOrNull(ov.querySelector("#miu").value) : null, maanden: numOrNull(ov.querySelector("#mim").value) }
       });
+      if (nieuw.uren !== (m ? m.uren ?? null : null)) nieuw.urenT = nieuw.uren != null ? Date.now() : null;
       wijzig("machine", nieuw); render();
       if (m) { machineDetail(nieuw.id); toast("Opgeslagen"); } else { closeSheet(); toast("Machine toegevoegd"); }
     };
@@ -1795,7 +1808,7 @@ function prMachine(m, nu) {
       ${m.bouwjaar ? `<dt>Bouwjaar</dt><dd>${esc(m.bouwjaar)}</dd>` : ""}
       ${m.chassis ? `<dt>Chassisnummer</dt><dd>${esc(m.chassis)}</dd>` : ""}
       ${m.info ? `<dt>Info</dt><dd style="white-space:pre-wrap">${esc(m.info)}</dd>` : ""}
-      ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur" : "onbekend"}</dd>` : ""}
+      ${m.urenteller ? `<dt>Urenstand</dt><dd>${m.uren != null ? nf(m.uren) + " uur (" + urenVan(m) + ")" : "onbekend"}</dd>` : ""}
       <dt>Interval</dt><dd>${esc(ivTxt(m.interval || {}))}</dd>
       <dt>Laatste beurt</dt><dd>${lo ? csvDatum(lo.t) + (lo.uren != null ? " bij " + nf(lo.uren) + " uur" : "") : "nog niet vastgelegd"}</dd>
       <dt>Volgende beurt</dt><dd>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</dd>
@@ -1826,9 +1839,9 @@ function afdrukken(mid) {
       <h2>Onderhoud aan de beurt</h2>${dueHTML}
       ${zonder.length ? `<p class="pr-leeg" style="margin-top:4pt">Bij ${zonder.length} ${zonder.length === 1 ? "machine" : "machines"} is de laatste beurt nog niet ingevuld. Op de volgende pagina staat een invullijst.</p>` : ""}
       <h2>Alle machines</h2>
-      <table><thead><tr><th>Nr</th><th>Machine</th><th>Categorie</th><th class="r">Uren</th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
+      <table><thead><tr><th>Nr</th><th>Machine</th><th>Categorie</th><th class="r">Uren <span class="pr-k">(stand van)</span></th><th>Laatste beurt</th><th>Volgende beurt</th><th class="r">Open</th></tr></thead><tbody>${ms.map(m => {
         const s = ohStatus(m), lo = lastOh(m.id), open = db.meldingen.filter(x => x.machineId === m.id && x.status !== "klaar").length;
-        return `<tr><td class="nw">${esc(m.nr || "")}</td><td>${esc(m.naam)}${m.kenteken ? ` <span class="pr-k">${esc(m.kenteken)}</span>` : ""}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
+        return `<tr><td class="nw">${esc(m.nr || "")}</td><td>${esc(m.naam)}${m.kenteken ? ` <span class="pr-k">${esc(m.kenteken)}</span>` : ""}</td><td>${esc(catOf(m))}</td><td class="r">${m.urenteller && m.uren != null ? nf(m.uren) + (urenDatum(m) ? `<br><span class="pr-k">${csvDatum(urenDatum(m))}</span>` : "") : ""}</td><td class="nw">${lo ? csvDatum(lo.t) : ""}</td><td>${OHL[s.lvl]}${s.lvl !== "none" && s.lvl !== "onb" ? " · " + esc(s.txt) : ""}</td><td class="r">${open || ""}</td></tr>`;
       }).join("")}</tbody></table>
       ${arch.length ? `<h2>Ingeruild / niet meer in gebruik</h2><p class="pr-leeg">${arch.map(m => esc((m.nr ? m.nr + " " : "") + m.naam + (archiefTxt(m) ? " (" + archiefTxt(m) + ")" : ""))).join(", ")}</p>` : ""}
       ${vrij.length ? `<h2>Overig (niet in de lijst)</h2><table><thead><tr><th>Gemeld</th><th>Wat</th><th>Storing</th><th>Status</th></tr></thead><tbody>${vrij.map(x => `<tr><td class="nw">${csvDatum(x.t)}</td><td>${esc(mName(x))}</td><td>${esc(x.tekst)}</td><td class="nw">${x.status === "klaar" ? "Opgelost" + (x.tKlaar ? " " + csvDatum(x.tKlaar) : "") : "<b>Nog open</b>"}</td></tr>`).join("")}</tbody></table>` : ""}

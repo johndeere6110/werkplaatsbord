@@ -11,7 +11,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   sleutels niet. Foto's (1600 px, jpeg 0,8, data-URL) staan in IndexedDB: database "werkplaatsbord", store "fotos", sleutel = foto-id (f_...).
   Een storing heeft ook thumb: mini-voorbeeld (200 px) van de eerste foto, voor de lijst; alleen tonen als isBeeld().
 - Records: storing {id s_..., machineId of machineVrij, tekst, prio dringend|tijd, status open|klaar, door, fotos [id],
-  uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, chassis, info (vrije tekst), archief (ingeruild: datum of tekst; leeg = in gebruik), kenteken, cat, urenteller, uren,
+  uren, t, tKlaar, klaarDoor, thumb}; machine {id, nr (machinenummer, bv. "0700"), naam, type (soort), model (merk en type), bouwjaar, chassis, info (vrije tekst), archief (ingeruild: datum of tekst; leeg = in gebruik), kenteken, cat, urenteller, uren, urenT (tijdstip van de urenstand; leeg = afleiden uit de nieuwste beurt/storing met die stand),
   interval {uren, maanden}}; onderhoud
   {id o_... (uit Excel: ox...), machineId, t, uren, wat, door, soort (leeg = beurt, "controle", "reparatie"; reparatie telt niet
   als laatste beurt)}; keuring {id k_..., machineId, soort, tot (geldig tot), maanden, vooraf
