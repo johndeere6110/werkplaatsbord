@@ -293,7 +293,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 45; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 46; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1217,26 +1217,56 @@ function render() {
 
 /* ---------- vensters ---------- */
 let sheetAangeraakt = false;
+/* Terugknop (Android/browser): stap voor stap terug in plaats van de app te sluiten.
+   Zolang er een venster open is staat er één extra stap in de geschiedenis. Vensters die je kunt terugkrijgen
+   (machine, storing, keuring, instellingen) melden zich met pagina(sleutel, terug); formulieren niet.
+   Terug vanuit een formulier → de pagina eronder; vanuit een pagina → de vorige pagina, of dicht. */
+const paginas = []; let volgendePagina = null, huidigePagina = null, histOpen = false, viewerHist = false, negeerPop = 0, terugGewaarschuwd = false;
+function pagina(sleutel, terug) {
+  const i = paginas.findIndex(p => p.sleutel === sleutel);
+  if (i >= 0) paginas.splice(i); // al eerder open: alles daarna vervalt
+  paginas.push({ sleutel, terug }); volgendePagina = sleutel;
+}
+window.addEventListener("popstate", () => {
+  if (negeerPop) { negeerPop--; return; }
+  if (viewerHist) { viewerHist = false; $("#viewer").hidden = true; $("#viewerImg").removeAttribute("src"); return; } // foto groot: alleen die dicht
+  histOpen = false;
+  if (!$("#sheetRoot").innerHTML) return; // niks open: gewoon terug (de app mag dan dicht)
+  // formulier met iets ingevuld: eerst waarschuwen
+  if (!huidigePagina && sheetAangeraakt && !terugGewaarschuwd) { terugGewaarschuwd = true; toast("Nog niet opgeslagen. Nog een keer terug om het weg te gooien."); return houOpen(); }
+  if (huidigePagina && paginas.length && paginas[paginas.length - 1].sleutel === huidigePagina) paginas.pop();
+  const vorige = paginas[paginas.length - 1];
+  if (vorige) vorige.terug(); else { paginas.length = 0; huidigePagina = null; $("#sheetRoot").innerHTML = ""; }
+});
+function houOpen() { if (!histOpen && $("#sheetRoot").innerHTML) { history.pushState({ wpb: 1 }, ""); histOpen = true; } }
 function openSheet(html, onMount) {
   const root = $("#sheetRoot");
+  huidigePagina = volgendePagina; volgendePagina = null; terugGewaarschuwd = false;
+  if (!huidigePagina) { /* formulier: hoort bij de pagina eronder */ } else if (!paginas.some(p => p.sleutel === huidigePagina)) paginas.length = 0;
   root.innerHTML = `<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
   const ov = $("#ov");
   // Een tik of klik naast het venster doet niks: sluiten alleen met ×.
   // Esc sluit zolang er nog niks is ingevuld of gekozen.
   sheetAangeraakt = false;
-  ov.querySelector(".sheet").addEventListener("input", () => sheetAangeraakt = true);
-  ov.querySelector(".sheet").addEventListener("change", () => sheetAangeraakt = true);
-  ov.querySelector(".sheet").addEventListener("click", e => { if (e.target.closest("button:not(.x), label")) sheetAangeraakt = true; });
+  // (alleen zolang dit venster nog open is: de klik die een nieuw venster opent telt niet voor dat nieuwe venster)
+  const sh = ov.querySelector(".sheet");
+  sh.addEventListener("input", () => { if (sh.isConnected) sheetAangeraakt = true; });
+  sh.addEventListener("change", () => { if (sh.isConnected) sheetAangeraakt = true; });
+  sh.addEventListener("click", e => { if (sh.isConnected && e.target.closest("button:not(.x), label")) sheetAangeraakt = true; });
   ov.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeSheet));
   onMount && onMount(ov);
   vulFotos(ov);
   ov.querySelector(".sheet").scrollTop = 0;
+  houOpen();
 }
-function closeSheet() { $("#sheetRoot").innerHTML = ""; }
-document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#viewer").hidden) $("#viewer").hidden = true; else if (!sheetAangeraakt) closeSheet(); } });
+function closeSheet() {
+  $("#sheetRoot").innerHTML = ""; paginas.length = 0; huidigePagina = null; volgendePagina = null;
+  if (histOpen) { histOpen = false; negeerPop++; history.back(); } // de extra stap weer weghalen
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#viewer").hidden) $("#viewerX").click(); else if (!sheetAangeraakt) closeSheet(); } });
 // Tik op een foto: schermvullend (knijpen om in te zoomen); tik op × om terug te gaan
-$("#sheetRoot").addEventListener("click", e => { const img = e.target.closest(".gallery img"); if (!img) return; $("#viewerImg").src = img.src; $("#viewer").hidden = false; });
-$("#viewerX").onclick = () => { $("#viewer").hidden = true; $("#viewerImg").removeAttribute("src"); };
+$("#sheetRoot").addEventListener("click", e => { const img = e.target.closest(".gallery img"); if (!img) return; $("#viewerImg").src = img.src; $("#viewer").hidden = false; if (!viewerHist) { history.pushState({ wpb: 2 }, ""); viewerHist = true; } });
+$("#viewerX").onclick = () => { $("#viewer").hidden = true; $("#viewerImg").removeAttribute("src"); if (viewerHist) { viewerHist = false; negeerPop++; history.back(); } };
 const head = t => `<div class="sheet-h"><h2>${t}</h2><button class="x" data-close aria-label="Sluiten">×</button></div>`;
 // Twee keer tikken om te bevestigen (geen confirm()); armed(knop, tekst-bij-eerste-tik, actie)
 function armed(btn, tekst, doe) {
@@ -1328,6 +1358,7 @@ function newMelding(preMach) {
 
 function detail(id) {
   const x = db.meldingen.find(m => m.id === id); if (!x) return;
+  pagina("s:" + id, () => detail(id));
   const other = x.prio === "dringend" ? "tijd" : "dringend";
   const actions = [];
   if (x.status !== "klaar") actions.push(`<button class="btn done" data-s="klaar">Klaar</button>`);
@@ -1356,6 +1387,7 @@ function detail(id) {
 
 function machineDetail(mid) {
   const m = mach(mid); if (!m) return;
+  pagina("m:" + mid, () => machineDetail(mid));
   const ms = db.meldingen.filter(x => x.machineId === mid);
   const yr = new Date().getFullYear();
   const dit = ms.filter(x => new Date(x.t).getFullYear() === yr).length;
@@ -1638,6 +1670,7 @@ function leesBestand(file) {
 /* ---------- keuringen ---------- */
 function keuringDetail(kid) {
   const k = db.keuringen.find(x => x.id === kid); if (!k) return;
+  pagina("k:" + kid, () => keuringDetail(kid));
   const m = mach(k.machineId), st = kStatus(k), hist = k.hist || [];
   openSheet(`${head(esc(k.soort))}
     <p class="hint" style="margin-top:-8px">${esc(m ? m.naam : "?")}</p>
@@ -1951,6 +1984,7 @@ function kopieer(tekst, vak) {
   try { navigator.clipboard.writeText(tekst).then(() => { toast("Link gekopieerd"); toon(); }, toon); } catch (e) { toon(); }
 }
 function instellingen(daarna) {
+  pagina("inst", () => instellingen());
   openSheet(`${head("Instellingen")}
     <div class="field"><label for="sNaam">Jouw naam</label><input id="sNaam" type="text" value="${esc(me)}" autocomplete="given-name" placeholder="Bijv. Henk"></div>
     <span class="lbl">Groep</span>
