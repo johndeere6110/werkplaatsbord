@@ -214,7 +214,9 @@ function onEdit(e) {
 // ---------- Pushmeldingen ----------
 const DAG = 86400000;
 const TELBLAD = 'telefoons';
-const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt', 'dagen', 'laatste push', 'uur'];
+const TELKOP = ['apparaat', 'naam', 'endpoint', 'p256dh', 'auth', 'dringend', 'keuring', 'bijgewerkt', 'dagen', 'laatste push', 'uur', 'schatting'];
+// schatting: 'ja' (of leeg) = onderhoud rekenen met een geschatte urenstand van nu als de stand oud is; 'nee' = met de stand zelf
+function variant_(r) { return String(r[11] == null ? '' : r[11]).trim() === 'nee' ? 'zonder' : 'met'; }
 // uur: hoe laat de ochtendmelding komt (0-23, leeg = 7). Werkt pas als de trigger elk uur draait (meldingenInstellen,
 // zet scripteigenschap ELK_UUR); met de oude trigger (één keer om 7 uur) krijgt iedereen hem dan.
 function uurOk_(r) {
@@ -247,7 +249,7 @@ function abonneer_(app, a) {
   const dagen = /^[1-7]{1,7}$/.test(String(a.dagen || '')) ? String(a.dagen) : '1234567';
   const uur = /^\d{1,2}$/.test(String(a.uur)) && Number(a.uur) < 24 ? Number(a.uur) : 7;
   const rij = [app, String(a.naam || '').slice(0, 40), String(a.endpoint), String(a.p256dh || '').slice(0, 200), String(a.auth || '').slice(0, 100),
-    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date(), dagen, Date.now(), uur];
+    a.dringend ? 'ja' : 'nee', a.keuring ? 'ja' : 'nee', new Date(), dagen, Date.now(), uur, a.schatting === false ? 'nee' : 'ja'];
   for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) { rij[9] = Number(v[i][9]) || Date.now(); sh.getRange(i + 1, 1, 1, TELKOP.length).setValues([rij]); return { ok: true }; }
   sh.appendRow(rij);
   return { ok: true };
@@ -259,7 +261,7 @@ function afmelden_(app) {
 }
 function telefoon_(app) {
   const v = blad_(TELBLAD, TELKOP).getDataRange().getValues();
-  for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) return { dringend: String(v[i][5]) === 'ja', keuring: String(v[i][6]) === 'ja' };
+  for (let i = 1; i < v.length; i++) if (String(v[i][0]) === app) return { dringend: String(v[i][5]) === 'ja', keuring: String(v[i][6]) === 'ja', variant: variant_(v[i]) };
   return null;
 }
 function testmelding_(app) {
@@ -286,6 +288,7 @@ function berichtenVoor_(app, sinds) {
     if (b.t <= sinds) return false;
     if (b.voor) return b.voor === app;
     if (!tel) return false;
+    if (b.variant && b.variant !== tel.variant) return false;
     return b.soort === 'dringend' ? tel.dringend && b.niet !== app : tel.keuring;
   });
   return { ok: true, berichten: l, nu: Date.now() };
@@ -304,21 +307,22 @@ function meldDringend_(lijst, app, v) {
 // Elke ochtend (trigger van meldingenInstellen): keuringen die gaan verlopen en onderhoud dat te laat is.
 // Per keuring een melding bij de eerste waarschuwing, 14 en 7 dagen van tevoren, de dag ervoor, op de dag zelf en als hij verlopen is.
 function dagelijks() {
-  const v = blad_(BLAD, KOP).getDataRange().getValues(), machines = {}, onderhoud = {}, keuringen = [];
+  const v = blad_(BLAD, KOP).getDataRange().getValues(), machines = {}, onderhoud = {}, keuringen = [], metingen = {};
   for (let i = 1; i < v.length; i++) {
     const r = v[i]; if (!r[0] || String(r[6]).trim()) continue;
     let d; try { d = JSON.parse(String(r[7])); } catch (x) { continue; }
     const s = String(r[1]);
+    if ((s === 'onderhoud' || s === 'storing') && d.machineId && d.uren != null && d.t) (metingen[d.machineId] = metingen[d.machineId] || []).push({ t: Number(d.t), u: Number(d.uren) });
     if (s === 'machine') machines[d.id] = d;
     else if (s === 'onderhoud' && d.soort !== 'reparatie') (onderhoud[d.machineId] = onderhoud[d.machineId] || []).push(d); // reparatie telt niet als beurt
     else if (s === 'keuring') keuringen.push(d);
   }
-  const props = PropertiesService.getScriptProperties(), vandaag = dagNr_(Date.now()), nieuw = {}, regels = [];
+  const props = PropertiesService.getScriptProperties(), vandaag = dagNr_(Date.now()), nieuw = {}, regels = [], met = [], zonder = [];
   let oud = {}; try { oud = JSON.parse(props.getProperty('GEMELD') || '{}'); } catch (x) {}
-  const melden = function (sleutel, stap, tekst) {
+  const melden = function (sleutel, stap, tekst, lijst) {
     const vorige = oud[sleutel];
     nieuw[sleutel] = vorige == null ? stap : Math.min(vorige, stap);
-    if (vorige == null || stap < vorige) regels.push(tekst);
+    if (vorige == null || stap < vorige) (lijst || regels).push(tekst);
   };
   keuringen.sort(function (a, b) { return a.tot - b.tot; }).forEach(function (k) {
     const m = machines[k.machineId]; if (!m || m.archief || !k.tot) return;
@@ -332,27 +336,55 @@ function dagelijks() {
     if (m.archief) return; // ingeruild / niet meer in gebruik
     if (!iv.uren && !iv.maanden) return;
     const l = (onderhoud[id] || []).sort(function (a, b) { return b.t - a.t; })[0]; if (!l) return;
-    let lvl = 2; const delen = [];
-    if (iv.uren && m.uren != null && l.uren != null) {
-      const rest = l.uren + iv.uren - m.uren;
-      delen.push(rest >= 0 ? 'nog ' + rest + ' uur' : (-rest) + ' uur over tijd'); lvl = Math.min(lvl, rest < 0 ? 0 : rest <= 50 ? 1 : 2);
-    }
-    if (iv.maanden) {
-      const dt = new Date(l.t); dt.setMonth(dt.getMonth() + Number(iv.maanden));
-      const d = dagNr_(dt.getTime()) - vandaag;
-      delen.push(d >= 0 ? 'over ' + d + ' dagen' : (-d) + ' dagen te laat'); lvl = Math.min(lvl, d < 0 ? 0 : d <= 30 ? 1 : 2);
-    }
-    if (lvl < 2) melden('o|' + id + '|' + l.id, lvl, m.naam + ': onderhoud ' + (lvl === 0 ? 'te laat' : 'binnenkort') + ' (' + delen.join(' of ') + ')');
+    const sch = iv.uren && l.uren != null ? schatting_(m, metingen[id] || []) : null;
+    // twee keer: met de geschatte stand van nu (als die er is) en met de stand zelf; elke telefoon krijgt zijn eigen keuze
+    [['met', sch, met], ['zonder', null, zonder]].forEach(function (x) {
+      const s = x[1]; let lvl = 2; const delen = [];
+      if (iv.uren && m.uren != null && l.uren != null) {
+        const rest = s ? Math.round((l.uren + iv.uren - s.nu) / 10) * 10 : l.uren + iv.uren - m.uren, g = s ? '± ' : '', gs = s ? ' (geschat)' : '';
+        delen.push(rest >= 0 ? 'nog ' + g + rest + ' uur' + gs : g + (-rest) + ' uur over tijd' + gs);
+        lvl = Math.min(lvl, rest < 0 ? 0 : rest <= Math.max(50, s ? s.perDag * 14 : 0) ? 1 : 2);
+      }
+      if (iv.maanden) {
+        const dt = new Date(l.t); dt.setMonth(dt.getMonth() + Number(iv.maanden));
+        const d = dagNr_(dt.getTime()) - vandaag;
+        delen.push(d >= 0 ? 'over ' + d + ' dagen' : (-d) + ' dagen te laat'); lvl = Math.min(lvl, d < 0 ? 0 : d <= 30 ? 1 : 2);
+      }
+      if (lvl < 2) melden((x[0] === 'met' ? 'os|' : 'o|') + id + '|' + l.id, lvl, m.naam + ': onderhoud ' + (lvl === 0 ? 'te laat' : 'binnenkort') + ' (' + delen.join(' of ') + ')', x[2]);
+    });
   });
   props.setProperty('GEMELD', JSON.stringify(nieuw));
-  if (regels.length) bericht_({ soort: 'keuring', titel: regels.length === 1 ? 'Werkplaats: let op' : 'Werkplaats: ' + regels.length + ' dingen', tekst: regels.join('\n') });
+  const stuur = function (l, variant) {
+    if (!l.length) return;
+    const b = { soort: 'keuring', titel: l.length === 1 ? 'Werkplaats: let op' : 'Werkplaats: ' + l.length + ' dingen', tekst: l.join('\n') };
+    if (variant) b.variant = variant;
+    bericht_(b);
+  };
+  if (met.join('\n') === zonder.join('\n')) stuur(regels.concat(met)); // geen verschil: één bericht voor iedereen
+  else { stuur(regels.concat(met), 'met'); stuur(regels.concat(zonder), 'zonder'); }
   // Elke telefoon die vandaag aan staat en nog berichten heeft die hij niet kreeg (ook van zijn vrije dagen) krijgt een push
   let l = []; try { l = JSON.parse(props.getProperty('BERICHTEN') || '[]'); } catch (x) {}
   pushNaar_(function (r) {
     if (!dagOk_(r) || !uurOk_(r)) return false;
     const sinds = Number(r[9]) || (Date.now() - DAG), app = String(r[0]);
-    return l.some(function (b) { return b.t > sinds && !b.voor && (b.soort === 'dringend' ? String(r[5]) === 'ja' && b.niet !== app : String(r[6]) === 'ja'); });
+    return l.some(function (b) { return b.t > sinds && !b.voor && (!b.variant || b.variant === variant_(r)) && (b.soort === 'dringend' ? String(r[5]) === 'ja' && b.niet !== app : String(r[6]) === 'ja'); });
   });
+}
+// Gemiddeld gebruik (uren per dag) uit de metingen van de laatste 2 jaar, na een eventuele vervangen urenklok; zelfde als in de app.
+// Is de stand ouder dan een week: geschatte stand van nu. Tijdstip van de stand: urenT, anders de nieuwste meting met precies die stand.
+function schatting_(m, metingen) {
+  if (m.uren == null) return null;
+  let ud = Number(m.urenT) || 0;
+  if (!ud) metingen.forEach(function (x) { if (x.u === Number(m.uren) && x.t > ud) ud = x.t; });
+  if (!ud || Date.now() - ud < 7 * DAG) return null;
+  const pt = metingen.concat([{ t: ud, u: Number(m.uren) }]).sort(function (a, b) { return a.t - b.t; });
+  let start = 0; for (let i = 1; i < pt.length; i++) if (pt[i].u < pt[i - 1].u) start = i;
+  const l = pt.slice(start); if (l.length < 2) return null;
+  const eind = l[l.length - 1];
+  const begin = l.filter(function (x) { return eind.t - x.t <= 730 * DAG && eind.t - x.t >= 60 * DAG; })[0] || l[0];
+  const dagen = (eind.t - begin.t) / DAG, perDag = (eind.u - begin.u) / dagen;
+  if (!(dagen >= 60 && perDag > 0 && perDag < 24)) return null;
+  return { nu: Math.round(Number(m.uren) + perDag * (Date.now() - ud) / DAG), perDag: perDag };
 }
 function dagNr_(ts) { return Math.round(Date.parse(Utilities.formatDate(new Date(ts), 'Europe/Amsterdam', 'yyyy-MM-dd') + 'T00:00:00Z') / DAG); }
 function datum_(ts) { return Utilities.formatDate(new Date(ts), 'Europe/Amsterdam', 'd-M-yyyy'); }

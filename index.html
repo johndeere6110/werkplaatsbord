@@ -293,7 +293,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 44; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 45; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -1073,9 +1073,9 @@ async function pushAan(keuze, stil) {
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(sync.vapid) });
   const j = sub.toJSON();
   await pushConfig(!push.aan);
-  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur() } });
+  const r = await vraag({ abonnement: { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh, auth: (j.keys || {}).auth, naam: me, dringend: keuze.dringend, keuring: keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur(), schatting: keuze.schatting !== false } });
   if (!r || !r.ok) throw new Error("Aanmelden bij de groep lukte niet" + (r && r.fout ? " (" + r.fout + ")" : "") + ".");
-  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur(), endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
+  push = { aan: true, dringend: !!keuze.dringend, keuring: !!keuze.keuring, dagen: keuze.dagen || pushDagen(), uur: keuze.uur ?? pushUur(), schatting: keuze.schatting !== false, endpoint: j.endpoint, vapid: sync.vapid, t: Date.now() };
   store.set("wpbPush", push);
 }
 async function pushUit() {
@@ -1907,6 +1907,8 @@ function meldingenHTML() {
   if (!sync.vapid) return `<p class="hint">${sync.soorten ? "Het Google-script van de groep moet eerst bijgewerkt worden (zie handleiding)." : "Nog niet bijgewerkt met de groep. Probeer het zo nog eens."}</p>`;
   return `<label class="check"><input id="pD" type="checkbox" ${push.dringend !== false ? "checked" : ""}> Dringende storingen (meteen)</label>
     <label class="check"><input id="pK" type="checkbox" ${push.keuring !== false ? "checked" : ""}> Keuringen en onderhoud (dagelijks)</label>
+    <label class="check"><input id="pS" type="checkbox" ${push.schatting !== false ? "checked" : ""}> Onderhoud: rekenen met geschatte urenstand</label>
+    <p class="hint" style="margin:-6px 0 0 34px">Is de urenstand oud, dan schat de app hoe ver de machine nu is (gemiddeld gebruik). Uit: alleen met de ingevulde stand.</p>
     <div class="field"><span class="lbl">Op welke dagen</span>
       <div class="cats wrap" id="pDag">${DAGEN.map(([n, l]) => `<button type="button" data-d="${n}" aria-pressed="${pushDagen().includes(n)}">${l}</button>`).join("")}</div>
       <p class="hint">Wat er op je vrije dagen gebeurt, krijg je de eerstvolgende dag dat je aan staat.</p></div>
@@ -1926,7 +1928,7 @@ function meldingenKnoppen(ov) {
     const dagen = [...ov.querySelectorAll('#pDag [aria-pressed="true"]')].map(b => b.dataset.d).join("");
     if (!dagen) return fout("Kies minstens één dag.");
     bezig(aan, true);
-    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked, dagen, uur: Number(ov.querySelector("#pUur").value) }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
+    try { await pushAan({ dringend: ov.querySelector("#pD").checked, keuring: ov.querySelector("#pK").checked, schatting: ov.querySelector("#pS").checked, dagen, uur: Number(ov.querySelector("#pUur").value) }); toast(push.aan ? "Meldingen staan aan" : "Opgeslagen"); instellingen(); }
     catch (e) { fout(String(e && e.message || e)); bezig(aan, false); }
   };
   const t = ov.querySelector("#pTest");

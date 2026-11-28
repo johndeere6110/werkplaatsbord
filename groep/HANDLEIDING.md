@@ -78,6 +78,10 @@ Eenmalig instellen, daarna gaat het vanzelf. Dit is een eigen groep, los van de 
 - **Meldingstijd per telefoon** (vanaf app-versie 37): na het plakken van het script **meldingenInstellen** nog één keer
   uitvoeren. Dan controleert het script elk uur en krijgt iedereen de melding op de tijd die hij in de app koos. Zonder
   dat blijft het één keer per dag rond 7 uur, voor iedereen.
+- **Geschatte urenstand in de onderhoudsmelding** (vanaf app-versie 45): is de urenstand van een machine ouder dan een
+  week, dan rekent het script met een schatting van nu (gemiddeld gebruik uit de beurten, reparaties en storingen met
+  uren). Per telefoon uit te zetten in de app; dat staat in de kolom **schatting** van het blad telefoons (ja/nee).
+  Alleen het script opnieuw plakken en een nieuwe versie implementeren; meldingenInstellen hoeft niet opnieuw.
 - **Keuringsrapporten** (PDF of foto, vanaf app-versie 23) komen in dezelfde Drive-map als de foto's, als <id>.pdf; in de
   beschrijving van het bestand staat de machine, de keuring en de datum. Met een ouder script blijven ze op de telefoon
   tot het script is bijgewerkt. **fotosOpruimen** laat rapporten staan.
