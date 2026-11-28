@@ -293,7 +293,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 46; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 47; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -653,7 +653,7 @@ const LIJST_KOPPEL = {
   "1417": ["Volvo mobiele kraan (oud)"], "1104": ["Doosan mobiele (Teun)", "Doosan mobiele kraan"], "1105": ["Doosan rups (Pieter)", "Doosan rupskraan"],
   "1106": ["Kobelco SK210-11 (Lucas)", "Kobelco rupskraan (groot)"], "1000": ["Volvo L60E"], "1001": ["Volvo L60F"]
 };
-const LIJST_VERSIE = 11; // 11: 0714 (T174A) naar het archief; 10: bouwjaar 1322 2027 -> 2026; 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief; 9: machines uit de Excel-schema's erbij, 0107 weg
+const LIJST_VERSIE = 12; // 12: standaard interval 500 uur / 12 maanden voor machines met urenteller; 11: 0714 (T174A) naar het archief; 10: bouwjaar 1322 2027 -> 2026; 3: Amazone-strooiers 1321 en 1322 erbij; 4: 0715 terug; 5: gegevens 0715 aangevuld; 6: ingeruild weg, quad erbij; 7: 0715 info T214; 8: ingeruild naar het archief; 9: machines uit de Excel-schema's erbij, 0107 weg
 // Aanvullen per machinenummer: alleen velden die nog leeg zijn (wat iemand zelf invulde blijft staan)
 const LIJST_AANVUL = { "0715": { chassis: "YK5T174D0MS043017", info: "Gechipt naar T214" } };
 // Verbeteren: [veld, oude waarde, nieuwe waarde]; alleen als er nog precies de oude waarde staat
@@ -668,6 +668,7 @@ const LIJST_ARCHIEF = { "0703": "ingeruild", "0706": "ingeruild", "0710": "inger
 // sync, zodat het apparaat ziet wat er al is. Bestaande machines houden hun naam en alles wat erbij staat; ze krijgen
 // alleen nummer, merk/type, bouwjaar en (als dat leeg is) kenteken. Nieuwe machines krijgen id n<nr> met g = 1: wat al in
 // de groep staat (of daar is weggehaald) wint altijd, en twee apparaten tegelijk maken geen dubbele.
+const STANDAARD_IV = { uren: 500, maanden: 12 }; // nieuwe machines met urenteller en de eenmalige aanvulling (lijst 12)
 function lijstInlezen() {
   if (store.get("wpbLijst", 0) >= LIJST_VERSIE) return false;
   const kent = k => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -721,6 +722,14 @@ function lijstInlezen() {
     const id = "n" + nr, m = mach(id);
     if (!m || m.nr !== nr || [db.meldingen, db.onderhoud, db.keuringen].some(l => l.some(x => x.machineId === id))) continue;
     verwijder("machine", id); veranderd = true;
+  }
+  // 12: elke machine in gebruik met een urenteller krijgt 500 uur / 12 maanden waar dat nog leeg is (daarna gewoon aan te passen)
+  if (store.get("wpbLijst", 0) < 12) for (const m of db.machines.slice()) {
+    if (!m.urenteller || m.archief) continue;
+    const iv = m.interval || {}, bij = {};
+    if (!iv.uren) bij.uren = STANDAARD_IV.uren;
+    if (!iv.maanden) bij.maanden = STANDAARD_IV.maanden;
+    if (Object.keys(bij).length) { wijzig("machine", Object.assign({}, m, { interval: Object.assign({}, iv, bij) })); veranderd = true; }
   }
   store.set("wpbLijst", LIJST_VERSIE);
   if (veranderd) { bewaar(); planSync(); }
@@ -1553,9 +1562,10 @@ function urenForm(mid) {
 
 // Machine toevoegen (mid leeg) of bewerken
 function machineForm(mid) {
-  const m = mid ? mach(mid) : null, iv = (m && m.interval) || {};
+  const m = mid ? mach(mid) : null;
   let cat = m ? catOf(m) : (mcat !== "Alles" ? mcat : null);
   const ut0 = m ? !!m.urenteller : UREN_CATS.includes(cat);
+  const iv = m ? m.interval || {} : ut0 ? STANDAARD_IV : {}; // nieuw met urenteller: standaard ingevuld, aan te passen
   openSheet(`${head(m ? "Machine bewerken" : "Machine toevoegen")}
     <div class="field"><label for="mn">Naam</label><input id="mn" type="text" value="${esc(m ? m.naam : "")}" placeholder="Bijv. Valtra T175"></div>
     <div class="two">

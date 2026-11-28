@@ -20,7 +20,7 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   na de machinelijst; ingeruilde machines zonder nummer krijgen id x_.... Machines met archief staan alleen in het tabje Ingeruild (niet in Alles, zoeken, melden, aan de beurt, PDF, ochtendmelding
   wordt één keer per apparaat ingelezen (lijstInlezen, sleutel wpbLijst = LIJST_VERSIE): bestaande machines krijgen via
   kenteken/LIJST_KOPPEL/naam alleen nr, model, bouwjaar en lege kentekens; nieuwe krijgen id n<nr> met g = 1. Met groep pas
-  na een geslaagde sync. Categorieën: CATS; UREN_CATS krijgen standaard een urenteller. meta[id] = {s: soort, g:
+  na een geslaagde sync. Categorieën: CATS; UREN_CATS krijgen standaard een urenteller. Standaard interval STANDAARD_IV (500 uur / 12 maanden) voor nieuwe machines met urenteller; lijst 12 vulde het eenmalig aan waar het leeg was. meta[id] = {s: soort, g:
   tijdstip laatste wijziging, weg: 1}. Elke wijziging gaat via wijzig(soort, obj) of verwijder(soort, id).
 - Groep: groep/apps-script.gs in een eigen Google Sheet (zie groep/HANDLEIDING.md), web-app-URL in GROEP_URL_VAST in
   index.html (zolang die leeg is staat er een veld Web-app-URL in Instellingen). Per record wint de nieuwste g;
