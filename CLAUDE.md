@@ -41,6 +41,8 @@ Perceelkaart en de Zaaihulp (johndeere6110.github.io), maar een losse app.
   staat en nog berichten heeft van na zijn laatste push (dus ook wat er op zijn vrije dagen gebeurde).
 - Uitnodiging: installeren.html?groep=<code> zet wpbGroepUitnodiging; de app pakt die op bij starten,
   visibilitychange en het storage-event. De app zelf met ?groep=<code> werkt ook.
+- Urenstand is een momentopname: urenDatum(m) (urenT of afgeleid). Is die ouder dan een week, dan rekent ohStatus met een
+  schatting van nu (gebruik(m): gemiddelde uren/dag uit beurten, reparaties en storingen van de laatste 2 jaar).
 - Gebruik geen alert(), confirm() of prompt(); bevestigen met armed() (twee keer tikken) en foutteksten in het venster.
 - Bij elke wijziging: verhoog VERSIE in index.html én CACHE in sw.js (werkplaatsbord-v1 -> v2), anders krijgen
   geïnstalleerde apps de update niet. Cachenamen beginnen met "werkplaatsbord-": de service worker ruimt alleen die op.

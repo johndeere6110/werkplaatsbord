@@ -293,7 +293,7 @@ select.kies{width:100%;border:1px solid var(--line);background:var(--surface);bo
 <script>
 (function(){
 "use strict";
-const VERSIE = 43; // ophogen bij elke wijziging, samen met CACHE in sw.js
+const VERSIE = 44; // ophogen bij elke wijziging, samen met CACHE in sw.js
 const GROEP_URL_VAST = "https://script.google.com/macros/s/AKfycbzg-RhaHY7s1bwVDmll2ArwWXHBqj4uDneLUWUNj9THBGp2lFSTHJUqiqqe22umfq9NYA/exec"; // web-app-URL van het Apps Script van de werkplaatsgroep (eindigt op /exec)
 const SITE = "https://johndeere6110.github.io/werkplaatsbord/";
 const DAY = 86400000, MAXFOTO = 4;
@@ -837,13 +837,19 @@ function ohStatus(m) {
   if (!last) return { lvl: "onb", txt: "Laatste beurt nog niet ingevuld" };
   let lvl = "ok"; const parts = [], laat = [];
   const bump = l => { if (l === "late" || (l === "soon" && lvl === "ok")) lvl = l; };
-  if (iv.uren && m.uren != null && last.uren != null) { const r = last.uren + iv.uren - m.uren; if (r >= 0) parts.push(`nog ${nf(r)} uur`); else laat.push(`${nf(-r)} uur over tijd`); bump(r < 0 ? "late" : r <= 50 ? "soon" : "ok"); }
+  // uren: met een oude stand rekenen we met een schatting van nu (gemiddeld gebruik), anders met de stand zelf
+  const sch = iv.uren && last.uren != null ? schatting(m) : null;
+  if (iv.uren && m.uren != null && last.uren != null) {
+    const nu = sch ? sch.nu : m.uren, r = Math.round((last.uren + iv.uren - nu) / (sch ? 10 : 1)) * (sch ? 10 : 1), g = sch ? "± " : "", gs = sch ? " (geschat)" : "";
+    if (r >= 0) parts.push(`nog ${g}${nf(r)} uur${gs}`); else laat.push(`${g}${nf(-r)} uur over tijd${gs}`);
+    bump(r < 0 ? "late" : r <= Math.max(50, sch ? sch.perDag * 14 : 0) ? "soon" : "ok");
+  }
   if (iv.maanden) { const d = Math.round((addMonths(last.t, iv.maanden) - Date.now()) / DAY); if (d >= 0) parts.push(`over ${span(d)}`); else laat.push(`${span(-d)} te laat (${iv.maanden} maanden om)`); bump(d < 0 ? "late" : d <= 30 ? "soon" : "ok"); }
   // te laat: alleen wat te laat is; anders wat het eerst komt
   let txt = laat.length ? laat.join(" en ") : parts.join(" of ") || "Urenstand onbekend";
   // urenstand nog dezelfde als bij de beurt (en die is al even geleden): dan zegt "nog ... uur" weinig
   const ud = urenDatum(m);
-  if (iv.uren && m.uren != null && ud && Date.now() - ud > 30 * DAY) txt += ` · urenstand van ${fmtDate(ud)}`;
+  if (iv.uren && m.uren != null && !sch && (!ud || Date.now() - ud > 30 * DAY)) txt += ud ? ` · urenstand van ${fmtDate(ud)}` : " · urenstand, datum onbekend";
   return { lvl, txt };
 }
 const ivTxt = iv => [iv.uren ? `elke ${nf(iv.uren)} uur` : "", iv.maanden ? `elke ${iv.maanden} maanden` : ""].filter(Boolean).join(" of ") || "niet ingesteld";
@@ -864,6 +870,23 @@ function urenLabel(m) {
   const d = urenDatum(m);
   if (!d) return '<span class="oud">urenstand, datum onbekend<br>kan hoger zijn</span>';
   return Date.now() - d > 30 * DAY ? `<span class="oud">urenstand op ${fmtDate(d)}<br>kan hoger zijn</span>` : `<span>urenstand op ${fmtDate(d)}</span>`;
+}
+// Gemiddeld gebruik uit de urenstanden van beurten, reparaties en storingen (laatste 2 jaar, na een eventuele
+// vervangen urenklok). Met een stand die ouder is dan een week: geschatte stand van nu.
+function gebruik(m) {
+  const pt = [...db.onderhoud, ...db.meldingen].filter(x => x.machineId === m.id && x.uren != null && x.t).map(x => ({ t: x.t, u: x.uren }));
+  const ud = urenDatum(m); if (m.uren != null && ud) pt.push({ t: ud, u: m.uren });
+  pt.sort((a, b) => a.t - b.t);
+  let start = 0; for (let i = 1; i < pt.length; i++) if (pt[i].u < pt[i - 1].u) start = i; // teller vervangen of tikfout: opnieuw beginnen
+  const l = pt.slice(start); if (l.length < 2) return null;
+  const eind = l[l.length - 1], begin = l.find(x => eind.t - x.t <= 730 * DAY && eind.t - x.t >= 60 * DAY) || l[0];
+  const dagen = (eind.t - begin.t) / DAY, perDag = (eind.u - begin.u) / dagen;
+  return dagen >= 60 && perDag > 0 && perDag < 24 ? perDag : null;
+}
+function schatting(m) {
+  const ud = urenDatum(m); if (m.uren == null || !ud || Date.now() - ud < 7 * DAY) return null;
+  const perDag = gebruik(m); if (!perDag) return null;
+  return { nu: Math.round(m.uren + perDag * (Date.now() - ud) / DAY), perDag, van: ud };
 }
 const urenVan = m => { const d = urenDatum(m); return d ? "stand van " + fmtDate(d) : "datum onbekend"; };
 
@@ -1357,6 +1380,7 @@ function machineDetail(mid) {
     <div class="kv">
       <div><span>Status</span>${m.archief ? '<span class="chip none">Ingeruild</span>' : `<span class="chip ${s.lvl}">${OHL[s.lvl]}</span>`}</div>
       ${s.lvl !== "none" && !m.archief ? `<div><span>Volgende beurt</span><span>${esc(s.txt)}</span></div>` : ""}
+      ${(() => { const sch = m.archief ? null : schatting(m); return sch ? `<div><span>Uren nu (geschat)</span><span>± ${nf(Math.round(sch.nu / 10) * 10)} · draait ± ${nf(Math.round(sch.perDag * 7))} u/week</span></div>` : ""; })()}
       <div><span>Laatste beurt</span><span>${lo ? `${fmtDate(lo.t)}${lo.uren != null ? " · " + nf(lo.uren) + " u" : ""}` : "nog niet vastgelegd"}</span></div>
       <div><span>Interval</span><span>${ivTxt(m.interval || {})}</span></div>
     </div>
